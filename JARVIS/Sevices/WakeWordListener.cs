@@ -13,7 +13,7 @@ namespace JARVIS.Services
 
         public event Action WakeWordDetected;
 
-        public WakeWordListener(string wakeWord = "hey jarvis")
+        public WakeWordListener(string wakeWord = "jarvis you there?")
         {
             _wakeWord = wakeWord.ToLower();
         }

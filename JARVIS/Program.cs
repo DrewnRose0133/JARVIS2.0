@@ -25,14 +25,13 @@ namespace JARVIS
 
             var baseUrl = config["LocalAI:BaseUrl"];
             var modelId = config["LocalAI:ModelId"];
-            var weatherApiKey = config["OpenWeather:ApiKey"]; // Get from appsettings.json
-            string cityName = config["OpenWeather:City"];        // Optional: Get city name from config too
+            var weatherApiKey = config["OpenWeather:ApiKey"];
+            var cityName = config["OpenWeather:City"];
 
-            if (string.IsNullOrWhiteSpace(cityName))
+            if (string.IsNullOrEmpty(baseUrl) || string.IsNullOrEmpty(modelId) || string.IsNullOrEmpty(weatherApiKey))
             {
-                Console.WriteLine("[Location] Attempting to auto-detect city...");
-                cityName = await LocationHelper.GetCityAsync();
-                Console.WriteLine($"[Location] Detected City: {cityName}");
+                Console.WriteLine("Error: Please configure LocalAI and OpenWeather settings in appsettings.json.");
+                return;
             }
 
             using var httpClient = new HttpClient { BaseAddress = new Uri(baseUrl) };
@@ -51,14 +50,36 @@ namespace JARVIS
             var memoryManager = new MemoryManager();
             var weatherCollector = new WeatherCollector(weatherApiKey);
 
+            if (string.IsNullOrWhiteSpace(cityName))
+            {
+                Console.WriteLine("[Location] Attempting to auto-detect city...");
+                cityName = await LocationHelper.GetCityAsync();
+                Console.WriteLine($"[Location] Detected City: {cityName}");
+            }
+
             string userInput = "";
             bool isAwake = false;
 
             wakeListener.WakeWordDetected += () =>
             {
+                try
+                {
+                    wakeListener.Stop(); // Auto Pause Wake Listener
+                }
+                catch { }
+
                 synthesizer.Speak("Yes, sir?");
-                Console.WriteLine("[WakeWord] Wake word detected. Active listening...");
-                activeRecognizer.RecognizeAsync(RecognizeMode.Multiple);
+                Console.WriteLine("[WakeWord] Wake word detected. Switching to active listening...");
+
+                try
+                {
+                    activeRecognizer.RecognizeAsync(RecognizeMode.Multiple);
+                }
+                catch (InvalidOperationException)
+                {
+                    // Recognizer already running
+                }
+
                 isAwake = true;
             };
 
@@ -74,6 +95,7 @@ namespace JARVIS
             wakeListener.Start();
             Console.WriteLine("JARVIS is sleeping. Listening for wake word...");
             synthesizer.Speak("System online, sir. Awaiting activation.");
+            StartBackgroundMonitor(synthesizer);
 
             try
             {
@@ -89,7 +111,6 @@ namespace JARVIS
                 Console.WriteLine($"[Startup Weather Error]: {ex.Message}");
             }
 
-
             while (true)
             {
                 if (!isAwake)
@@ -104,100 +125,68 @@ namespace JARVIS
                     continue;
                 }
 
-                // === Weather Handling
+                // ==== Handle Weather Commands
                 if (userInput.ToLower().Contains("weather") || userInput.ToLower().Contains("outside"))
                 {
-                    var weatherReport = await weatherCollector.GetWeatherAsync(cityName ?? "La Grange");
+                    var weatherReport = await weatherCollector.GetWeatherAsync(cityName);
                     Console.WriteLine($"JARVIS: {weatherReport}");
                     synthesizer.Speak(weatherReport);
                     ResetRecognition();
                     continue;
                 }
 
-                // === Special Commands
-                if (userInput.ToLower().Contains("enable sarcasm"))
+                // ==== Handle System Monitor Commands
+                if (userInput.ToLower().Contains("status report"))
                 {
-                    moodController.SarcasmEnabled = true;
-                    Console.WriteLine("JARVIS: Sarcasm enabled.");
-                    synthesizer.Speak("Sarcasm enabled, sir.");
+                    var report = await SystemMonitor.GetStatusReportAsync();
+                    Console.WriteLine($"JARVIS: {report}");
+                    synthesizer.Speak(report);
                     ResetRecognition();
                     continue;
                 }
-                if (userInput.ToLower().Contains("disable sarcasm"))
+                if (userInput.ToLower().Contains("cpu usage"))
                 {
-                    moodController.SarcasmEnabled = false;
-                    Console.WriteLine("JARVIS: Sarcasm disabled.");
-                    synthesizer.Speak("Sarcasm disabled, sir.");
+                    var cpu = await SystemMonitor.GetCpuUsageAsync();
+                    string cpuReport = cpu < 0 ? "Unable to retrieve CPU usage, sir." : $"Current CPU usage is {cpu:F1}%.";
+                    Console.WriteLine($"JARVIS: {cpuReport}");
+                    synthesizer.Speak(cpuReport);
                     ResetRecognition();
                     continue;
                 }
-                if (userInput.ToLower().Contains("lighthearted"))
+                if (userInput.ToLower().Contains("memory usage"))
                 {
-                    moodController.CurrentMood = Mood.Lighthearted;
-                    Console.WriteLine("JARVIS: Mood changed to lighthearted.");
-                    synthesizer.Speak("Mood changed to lighthearted, sir.");
+                    var memory = SystemMonitor.GetMemoryUsage();
+                    string memoryReport = memory < 0 ? "Unable to retrieve memory usage, sir." : $"Current memory usage is {memory:F1}%.";
+                    Console.WriteLine($"JARVIS: {memoryReport}");
+                    synthesizer.Speak(memoryReport);
                     ResetRecognition();
                     continue;
                 }
-                if (userInput.ToLower().Contains("serious"))
+                if (userInput.ToLower().Contains("disk status"))
                 {
-                    moodController.CurrentMood = Mood.Serious;
-                    Console.WriteLine("JARVIS: Mood changed to serious.");
-                    synthesizer.Speak("Mood changed to serious, sir.");
+                    var diskReport = SystemMonitor.GetDiskUsage();
+                    Console.WriteLine($"JARVIS: {diskReport}");
+                    synthesizer.Speak(diskReport);
                     ResetRecognition();
                     continue;
                 }
-                if (userInput.ToLower().Contains("emergency mode"))
+                if (userInput.ToLower().Contains("internet status"))
                 {
-                    moodController.CurrentMood = Mood.Emergency;
-                    Console.WriteLine("JARVIS: Emergency mode activated.");
-                    synthesizer.Speak("Emergency mode activated, sir.");
-                    ResetRecognition();
-                    continue;
-                }
-                if (userInput.ToLower().Contains("resume normal operations"))
-                {
-                    moodController.CurrentMood = Mood.Serious;
-                    Console.WriteLine("JARVIS: Resuming normal operations.");
-                    synthesizer.Speak("Resuming normal operations, sir.");
-                    ResetRecognition();
-                    continue;
-                }
-                if (userInput.ToLower().Contains("save memory"))
-                {
-                    memoryManager.SaveMemory(conversation.GetMessages());
-                    Console.WriteLine("JARVIS: Memory saved.");
-                    synthesizer.Speak("Memory saved, sir.");
-                    ResetRecognition();
-                    continue;
-                }
-                if (userInput.ToLower().Contains("load memory"))
-                {
-                    var loadedMessages = memoryManager.LoadMemory();
-                    conversation.Reset();
-                    foreach (var msg in loadedMessages)
-                    {
-                        if (msg.Role == "user")
-                            conversation.AddUserMessage(msg.Content);
-                        else if (msg.Role == "assistant")
-                            conversation.AddAssistantMessage(msg.Content);
-                    }
-                    Console.WriteLine("JARVIS: Memory loaded.");
-                    synthesizer.Speak("Memory loaded, sir.");
-                    ResetRecognition();
-                    continue;
-                }
-                if (userInput.ToLower().StartsWith("remember that"))
-                {
-                    var fact = userInput.Replace("remember that", "", StringComparison.OrdinalIgnoreCase).Trim();
-                    conversation.AddKnowledgeFact(fact);
-                    Console.WriteLine("JARVIS: Fact recorded.");
-                    synthesizer.Speak("Fact recorded, sir.");
+                    var internetReport = await SystemMonitor.GetInternetStatusAsync();
+                    Console.WriteLine($"JARVIS: {internetReport}");
+                    synthesizer.Speak(internetReport);
                     ResetRecognition();
                     continue;
                 }
 
-                // === Normal Conversation
+                // ==== Special Mood / Memory Commands (unchanged)
+                if (HandleSpecialCommands(userInput, moodController, memoryManager, conversation, synthesizer))
+                {
+                    ResetRecognition();
+                    continue;
+                }
+
+                // ==== Regular AI Conversation
                 conversation.AddUserMessage(userInput);
                 var prompt = conversation.BuildPrompt(moodController);
 
@@ -289,6 +278,7 @@ namespace JARVIS
                 ResetRecognition();
             }
 
+            // Helper: resets after each conversation
             void ResetRecognition()
             {
                 try
@@ -299,9 +289,130 @@ namespace JARVIS
 
                 isAwake = false;
                 userInput = "";
-                wakeListener.Start();
+
+                try
+                {
+                    wakeListener.Start(); // Auto Resume Wake Listener
+                }
+                catch { }
+
                 Console.WriteLine("[WakeWord] Returning to sleep mode...");
             }
+
+            // Helper: handle sarcasm/mood/memory special commands
+            bool HandleSpecialCommands(string command, MoodController mood, MemoryManager memory, ConversationEngine convo, SpeechSynthesizer synth)
+            {
+                string cmd = command.ToLower();
+
+                if (cmd.Contains("enable sarcasm"))
+                {
+                    mood.SarcasmEnabled = true;
+                    Console.WriteLine("JARVIS: Sarcasm enabled.");
+                    synth.Speak("Sarcasm enabled, sir.");
+                    return true;
+                }
+                if (cmd.Contains("disable sarcasm"))
+                {
+                    mood.SarcasmEnabled = false;
+                    Console.WriteLine("JARVIS: Sarcasm disabled.");
+                    synth.Speak("Sarcasm disabled, sir.");
+                    return true;
+                }
+                if (cmd.Contains("lighthearted"))
+                {
+                    mood.CurrentMood = Mood.Lighthearted;
+                    Console.WriteLine("JARVIS: Mood changed to lighthearted.");
+                    synth.Speak("Mood changed to lighthearted, sir.");
+                    return true;
+                }
+                if (cmd.Contains("serious"))
+                {
+                    mood.CurrentMood = Mood.Serious;
+                    Console.WriteLine("JARVIS: Mood changed to serious.");
+                    synth.Speak("Mood changed to serious, sir.");
+                    return true;
+                }
+                if (cmd.Contains("emergency mode"))
+                {
+                    mood.CurrentMood = Mood.Emergency;
+                    Console.WriteLine("JARVIS: Emergency mode activated.");
+                    synth.Speak("Emergency mode activated, sir.");
+                    return true;
+                }
+                if (cmd.Contains("resume normal operations"))
+                {
+                    mood.CurrentMood = Mood.Serious;
+                    Console.WriteLine("JARVIS: Resuming normal operations.");
+                    synth.Speak("Resuming normal operations, sir.");
+                    return true;
+                }
+                if (cmd.Contains("save memory"))
+                {
+                    memory.SaveMemory(convo.GetMessages());
+                    Console.WriteLine("JARVIS: Memory saved.");
+                    synth.Speak("Memory saved, sir.");
+                    return true;
+                }
+                if (cmd.Contains("load memory"))
+                {
+                    var loadedMessages = memory.LoadMemory();
+                    convo.Reset();
+                    foreach (var msg in loadedMessages)
+                    {
+                        if (msg.Role == "user")
+                            convo.AddUserMessage(msg.Content);
+                        else if (msg.Role == "assistant")
+                            convo.AddAssistantMessage(msg.Content);
+                    }
+                    Console.WriteLine("JARVIS: Memory loaded.");
+                    synth.Speak("Memory loaded, sir.");
+                    return true;
+                }
+                if (cmd.StartsWith("remember that"))
+                {
+                    var fact = command.Replace("remember that", "", StringComparison.OrdinalIgnoreCase).Trim();
+                    convo.AddKnowledgeFact(fact);
+                    Console.WriteLine("JARVIS: Fact recorded.");
+                    synth.Speak("Fact recorded, sir.");
+                    return true;
+                }
+
+                return false;
+            }
+
+            static void StartBackgroundMonitor(SpeechSynthesizer synthesizer)
+            {
+                Task.Run(async () =>
+                {
+                    while (true)
+                    {
+                        try
+                        {
+                            var cpuUsage = await SystemMonitor.GetCpuUsageAsync();
+                            var memoryUsage = SystemMonitor.GetMemoryUsage();
+
+                            if (cpuUsage > 85)
+                            {
+                                Console.WriteLine("[Monitor] High CPU detected.");
+                                synthesizer.Speak("Warning, sir. CPU usage has exceeded 85 percent.");
+                            }
+
+                            if (memoryUsage > 85)
+                            {
+                                Console.WriteLine("[Monitor] High memory usage detected.");
+                                synthesizer.Speak("Warning, sir. Memory usage has exceeded 85 percent.");
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            Console.WriteLine($"[Monitor Error]: {ex.Message}");
+                        }
+
+                        await Task.Delay(TimeSpan.FromSeconds(30)); // wait 30 seconds before next check
+                    }
+                });
+            }
+
         }
     }
 }
