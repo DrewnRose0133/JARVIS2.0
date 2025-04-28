@@ -25,11 +25,14 @@ namespace JARVIS
 
             var baseUrl = config["LocalAI:BaseUrl"];
             var modelId = config["LocalAI:ModelId"];
+            var weatherApiKey = config["OpenWeather:ApiKey"]; // Get from appsettings.json
+            string cityName = config["OpenWeather:City"];        // Optional: Get city name from config too
 
-            if (string.IsNullOrEmpty(baseUrl) || string.IsNullOrEmpty(modelId))
+            if (string.IsNullOrWhiteSpace(cityName))
             {
-                Console.WriteLine("Error: Please configure LocalAI:BaseUrl and ModelId in appsettings.json.");
-                return;
+                Console.WriteLine("[Location] Attempting to auto-detect city...");
+                cityName = await LocationHelper.GetCityAsync();
+                Console.WriteLine($"[Location] Detected City: {cityName}");
             }
 
             using var httpClient = new HttpClient { BaseAddress = new Uri(baseUrl) };
@@ -46,6 +49,7 @@ namespace JARVIS
             var conversation = new ConversationEngine();
             var moodController = new MoodController();
             var memoryManager = new MemoryManager();
+            var weatherCollector = new WeatherCollector(weatherApiKey);
 
             string userInput = "";
             bool isAwake = false;
@@ -71,6 +75,21 @@ namespace JARVIS
             Console.WriteLine("JARVIS is sleeping. Listening for wake word...");
             synthesizer.Speak("System online, sir. Awaiting activation.");
 
+            try
+            {
+                var startupWeatherReport = await weatherCollector.GetWeatherAsync(cityName);
+                if (!string.IsNullOrEmpty(startupWeatherReport))
+                {
+                    Console.WriteLine($"JARVIS (Startup Weather): {startupWeatherReport}");
+                    synthesizer.Speak(startupWeatherReport);
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[Startup Weather Error]: {ex.Message}");
+            }
+
+
             while (true)
             {
                 if (!isAwake)
@@ -82,6 +101,16 @@ namespace JARVIS
                 if (string.IsNullOrWhiteSpace(userInput))
                 {
                     await Task.Delay(500);
+                    continue;
+                }
+
+                // === Weather Handling
+                if (userInput.ToLower().Contains("weather") || userInput.ToLower().Contains("outside"))
+                {
+                    var weatherReport = await weatherCollector.GetWeatherAsync(cityName ?? "La Grange");
+                    Console.WriteLine($"JARVIS: {weatherReport}");
+                    synthesizer.Speak(weatherReport);
+                    ResetRecognition();
                     continue;
                 }
 
