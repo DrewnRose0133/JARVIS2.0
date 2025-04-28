@@ -9,7 +9,8 @@ namespace JARVIS
     public enum Mood
     {
         Serious,
-        Lighthearted
+        Lighthearted,
+        Emergency
     }
 
     public class MoodController
