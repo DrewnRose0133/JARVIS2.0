@@ -40,6 +40,7 @@ namespace JARVIS
             synthesizer.Rate = 0;
 
             var conversation = new ConversationEngine();
+            var moodController = new MoodController();
             string userInput = "";
 
             recognizer.SpeechRecognized += (s, e) =>
@@ -54,7 +55,6 @@ namespace JARVIS
             recognizer.RecognizeAsync(RecognizeMode.Multiple);
 
             Console.WriteLine("JARVIS is online, sir. I await your command.");
-
             synthesizer.Speak("JARVIS is online, sir. I await your command.");
 
             while (true)
@@ -65,8 +65,41 @@ namespace JARVIS
                     continue;
                 }
 
+                if (userInput.ToLower().Contains("enable sarcasm"))
+                {
+                    moodController.SarcasmEnabled = true;
+                    Console.WriteLine("JARVIS: Sarcasm mode enabled.");
+                    synthesizer.Speak("Sarcasm mode enabled, sir.");
+                    userInput = "";
+                    continue;
+                }
+                else if (userInput.ToLower().Contains("disable sarcasm"))
+                {
+                    moodController.SarcasmEnabled = false;
+                    Console.WriteLine("JARVIS: Sarcasm mode disabled.");
+                    synthesizer.Speak("Sarcasm mode disabled, sir.");
+                    userInput = "";
+                    continue;
+                }
+                else if (userInput.ToLower().Contains("lighthearted"))
+                {
+                    moodController.CurrentMood = Mood.Lighthearted;
+                    Console.WriteLine("JARVIS: Mood set to lighthearted.");
+                    synthesizer.Speak("Mood adjusted to lighthearted, sir.");
+                    userInput = "";
+                    continue;
+                }
+                else if (userInput.ToLower().Contains("serious"))
+                {
+                    moodController.CurrentMood = Mood.Serious;
+                    Console.WriteLine("JARVIS: Mood set to serious.");
+                    synthesizer.Speak("Mood adjusted to serious, sir.");
+                    userInput = "";
+                    continue;
+                }
+
                 conversation.AddUserMessage(userInput);
-                var prompt = conversation.BuildPrompt();
+                var prompt = conversation.BuildPrompt(moodController);
 
                 var completionPayload = new
                 {
@@ -111,8 +144,37 @@ namespace JARVIS
                     try
                     {
                         using var doc = JsonDocument.Parse(json);
-                        var chunk = doc.RootElement.GetProperty("choices")[0].GetProperty("text").GetString() ?? string.Empty;
-                        jarvisReply += chunk;
+                        var root = doc.RootElement;
+
+                        if (root.TryGetProperty("choices", out var choices))
+                        {
+                            var choice = choices[0];
+
+                            if (choice.TryGetProperty("text", out var textElement))
+                            {
+                                var chunk = textElement.GetString() ?? string.Empty;
+                                jarvisReply += chunk;
+                            }
+                            else if (choice.TryGetProperty("message", out var messageElement) &&
+                                     messageElement.TryGetProperty("content", out var contentElement))
+                            {
+                                var chunk = contentElement.GetString() ?? string.Empty;
+                                jarvisReply += chunk;
+                            }
+                            else
+                            {
+                                Console.WriteLine("[Warning] 'choices' did not contain 'text' or 'message.content'.");
+                            }
+                        }
+                        else if (root.TryGetProperty("error", out var error))
+                        {
+                            var errorMsg = error.GetProperty("message").GetString();
+                            Console.WriteLine($"[LocalAI error]: {errorMsg}");
+                        }
+                        else
+                        {
+                            Console.WriteLine($"[Warning] Unknown response format: {json}");
+                        }
                     }
                     catch (Exception ex)
                     {
@@ -126,13 +188,19 @@ namespace JARVIS
                 if (!string.IsNullOrEmpty(jarvisReply))
                 {
                     conversation.AddAssistantMessage(jarvisReply);
+
+                    if (jarvisReply.Length < 50)
+                        synthesizer.Rate = 2; // Faster for short replies
+                    else
+                        synthesizer.Rate = 0; // Normal for long answers
+
                     try
                     {
                         synthesizer.Speak(jarvisReply);
                     }
                     catch (Exception ex)
                     {
-                        Console.WriteLine($"[Speech Error]: {ex.Message}");
+                      //  Console.WriteLine($"[Speech Error]: {ex.Message}");
                     }
                 }
 
