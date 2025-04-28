@@ -1,66 +1,61 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
+﻿using System.Collections.Generic;
 using System.Text;
-using System.Threading.Tasks;
-using JARVIS;
 
 namespace JARVIS
 {
-    using System.Collections.Generic;
-    using System.Text;
-
     public class ConversationEngine
     {
-        private readonly List<(string Role, string Content)> _history = new();
-        private readonly int _maxMessages = 20; // Limit memory growth
-        
+        private readonly List<Message> _messages = new List<Message>();
 
-
-        public void AddUserMessage(string userInput)
+        public void AddUserMessage(string message)
         {
-            _history.Add(("user", userInput));
-            TrimHistory();
-        }
-
-        public void AddAssistantMessage(string assistantOutput)
-        {
-            _history.Add(("assistant", assistantOutput));
-            TrimHistory();
-        }
-
-        public string BuildPrompt(string systemPrompt = "You are JARVIS, a witty, sophisticated British home automation AI assistant. Speak eloquently, with full detailed sentences and dry humor.Always report temperatures in Fahrenheit, not Celsius.")
-        {
-            var sb = new StringBuilder();
-            sb.AppendLine(systemPrompt);
-
-            foreach (var (role, content) in _history)
+            _messages.Add(new Message
             {
-                sb.AppendLine($"{Capitalize(role)}: {content}");
+                Role = "user",
+                Content = message
+            });
+        }
+
+        public void AddAssistantMessage(string message)
+        {
+            _messages.Add(new Message
+            {
+                Role = "assistant",
+                Content = message
+            });
+        }
+
+        public string BuildPrompt()
+        {
+            var systemPrompt = "You are JARVIS, a sophisticated, witty AI assistant with a refined British demeanor, speaking politely and concisely like Paul Bettany. Always respond in a helpful, slightly dry, and intelligent tone.";
+            var promptBuilder = new StringBuilder();
+            promptBuilder.AppendLine(systemPrompt);
+            promptBuilder.AppendLine();
+
+            foreach (var message in _messages)
+            {
+                if (message.Role == "user")
+                    promptBuilder.AppendLine($"User: {message.Content}");
+                else if (message.Role == "assistant")
+                    promptBuilder.AppendLine($"JARVIS: {message.Content}");
             }
 
-            sb.Append("Assistant:");
-            return sb.ToString();
+            promptBuilder.AppendLine("JARVIS:");
+
+            return promptBuilder.ToString();
         }
 
         public void Reset()
         {
-            _history.Clear();
+            _messages.Clear();
         }
 
-        private void TrimHistory()
-        {
-            if (_history.Count > _maxMessages)
-            {
-                _history.RemoveAt(0); // Remove oldest message
-            }
-        }
-
-        private static string Capitalize(string role)
-        {
-            if (string.IsNullOrEmpty(role)) return role;
-            return char.ToUpper(role[0]) + role.Substring(1).ToLower();
-        }
+        public int MessageCount => _messages.Count;
     }
 
+    public class Message
+    {
+        public string Role { get; set; }
+        public string Content { get; set; }
+    }
 }
