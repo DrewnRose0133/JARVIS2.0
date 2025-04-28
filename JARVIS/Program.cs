@@ -49,6 +49,7 @@ namespace JARVIS
             var moodController = new MoodController();
             var memoryManager = new MemoryManager();
             var weatherCollector = new WeatherCollector(weatherApiKey);
+            var smartHomeController = new SmartHomeController();
 
             if (string.IsNullOrWhiteSpace(cityName))
             {
@@ -95,7 +96,6 @@ namespace JARVIS
             wakeListener.Start();
             Console.WriteLine("JARVIS is sleeping. Listening for wake word...");
             synthesizer.Speak("System online, sir. Awaiting activation.");
-            StartBackgroundMonitor(synthesizer);
 
             try
             {
@@ -125,7 +125,7 @@ namespace JARVIS
                     continue;
                 }
 
-                // ==== Handle Weather Commands
+                // === Weather Handling
                 if (userInput.ToLower().Contains("weather") || userInput.ToLower().Contains("outside"))
                 {
                     var weatherReport = await weatherCollector.GetWeatherAsync(cityName);
@@ -135,7 +135,7 @@ namespace JARVIS
                     continue;
                 }
 
-                // ==== Handle System Monitor Commands
+                // === System Monitoring Handling
                 if (userInput.ToLower().Contains("status report"))
                 {
                     var report = await SystemMonitor.GetStatusReportAsync();
@@ -179,14 +179,57 @@ namespace JARVIS
                     continue;
                 }
 
-                // ==== Special Mood / Memory Commands (unchanged)
+                // === Smart Home Control
+                if (userInput.ToLower().Contains("turn on the light") || userInput.ToLower().Contains("lights on"))
+                {
+                    string room = userInput.Contains("living room") ? "living room" :
+                                  userInput.Contains("kitchen") ? "kitchen" :
+                                  "unknown room";
+                    var result = await smartHomeController.TurnOnLightAsync(room);
+                    Console.WriteLine($"JARVIS: {result}");
+                    synthesizer.Speak(result);
+                    ResetRecognition();
+                    continue;
+                }
+
+                if (userInput.ToLower().Contains("turn off the light") || userInput.ToLower().Contains("lights off"))
+                {
+                    string room = userInput.Contains("living room") ? "living room" :
+                                  userInput.Contains("kitchen") ? "kitchen" :
+                                  "unknown room";
+                    var result = await smartHomeController.TurnOffLightAsync(room);
+                    Console.WriteLine($"JARVIS: {result}");
+                    synthesizer.Speak(result);
+                    ResetRecognition();
+                    continue;
+                }
+
+                if (userInput.ToLower().Contains("open the garage door"))
+                {
+                    var result = await smartHomeController.OpenGarageDoorAsync();
+                    Console.WriteLine($"JARVIS: {result}");
+                    synthesizer.Speak(result);
+                    ResetRecognition();
+                    continue;
+                }
+
+                if (userInput.ToLower().Contains("close the garage door"))
+                {
+                    var result = await smartHomeController.CloseGarageDoorAsync();
+                    Console.WriteLine($"JARVIS: {result}");
+                    synthesizer.Speak(result);
+                    ResetRecognition();
+                    continue;
+                }
+
+                // === Special Commands
                 if (HandleSpecialCommands(userInput, moodController, memoryManager, conversation, synthesizer))
                 {
                     ResetRecognition();
                     continue;
                 }
 
-                // ==== Regular AI Conversation
+                // === Regular AI Conversation
                 conversation.AddUserMessage(userInput);
                 var prompt = conversation.BuildPrompt(moodController);
 
@@ -379,40 +422,6 @@ namespace JARVIS
 
                 return false;
             }
-
-            static void StartBackgroundMonitor(SpeechSynthesizer synthesizer)
-            {
-                Task.Run(async () =>
-                {
-                    while (true)
-                    {
-                        try
-                        {
-                            var cpuUsage = await SystemMonitor.GetCpuUsageAsync();
-                            var memoryUsage = SystemMonitor.GetMemoryUsage();
-
-                            if (cpuUsage > 85)
-                            {
-                                Console.WriteLine("[Monitor] High CPU detected.");
-                                synthesizer.Speak("Warning, sir. CPU usage has exceeded 85 percent.");
-                            }
-
-                            if (memoryUsage > 85)
-                            {
-                                Console.WriteLine("[Monitor] High memory usage detected.");
-                                synthesizer.Speak("Warning, sir. Memory usage has exceeded 85 percent.");
-                            }
-                        }
-                        catch (Exception ex)
-                        {
-                            Console.WriteLine($"[Monitor Error]: {ex.Message}");
-                        }
-
-                        await Task.Delay(TimeSpan.FromSeconds(30)); // wait 30 seconds before next check
-                    }
-                });
-            }
-
         }
     }
 }
