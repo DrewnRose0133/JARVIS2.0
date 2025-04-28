@@ -1,10 +1,8 @@
 ﻿using System;
 using System.Diagnostics;
-using System.IO;
-using System.Net.Http;
 using System.Threading.Tasks;
 
-namespace JARVIS.Services
+namespace JARVIS.Shared
 {
     public static class SystemMonitor
     {
@@ -12,9 +10,14 @@ namespace JARVIS.Services
         {
             try
             {
+                // Create a PerformanceCounter to measure CPU usage
                 using var cpuCounter = new PerformanceCounter("Processor", "% Processor Time", "_Total");
+
+                // First call initializes the counter, so we need to call it once to get a baseline.
                 cpuCounter.NextValue();
-                await Task.Delay(500);
+                await Task.Delay(500); // Allow some time for the counter to gather data.
+
+                // Get the actual CPU usage
                 return cpuCounter.NextValue();
             }
             catch (Exception ex)

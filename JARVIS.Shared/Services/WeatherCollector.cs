@@ -3,7 +3,7 @@ using System.Net.Http;
 using System.Text.Json;
 using System.Threading.Tasks;
 
-namespace JARVIS.Services
+namespace JARVIS.Shared
 {
     public class WeatherCollector
     {

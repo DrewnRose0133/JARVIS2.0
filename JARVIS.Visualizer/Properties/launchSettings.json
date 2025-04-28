@@ -1,0 +1,10 @@
+{
+  "profiles": {
+    "JARVIS.Visualizer (Package)": {
+      "commandName": "MsixPackage"
+    },
+    "JARVIS.Visualizer (Unpackaged)": {
+      "commandName": "Project"
+    }
+  }
+}
