@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics;
 using System.IO;
 using System.Net.Http;
 using System.Net.Http.Json;
@@ -7,7 +8,6 @@ using System.Speech.Synthesis;
 using System.Text.Json;
 using Microsoft.Extensions.Configuration;
 using System.Threading.Tasks;
-using System.Linq;
 using JARVIS.Core;
 using JARVIS.Models;
 using JARVIS.Services;
@@ -35,6 +35,10 @@ namespace JARVIS
                 return;
             }
 
+            // Start the visualizer in a separate process
+            StartVisualizer();
+
+            // Initialize HttpClient for querying LocalAI
             using var httpClient = new HttpClient { BaseAddress = new Uri(baseUrl) };
             var wakeListener = new WakeWordListener("hey jarvis");
             var activeRecognizer = new SpeechRecognitionEngine(new System.Globalization.CultureInfo("en-US"));
@@ -50,7 +54,9 @@ namespace JARVIS
             var moodController = new MoodController();
             var memoryManager = new MemoryManager();
             var weatherCollector = new WeatherCollector(weatherApiKey);
-            var smartHomeController = new SmartHomeController();
+
+            // Initialize the SmartHomeController
+            var smartHomeController = new SmartHomeController(); // Declare and initialize the controller
 
             if (string.IsNullOrWhiteSpace(cityName))
             {
@@ -423,6 +429,63 @@ namespace JARVIS
 
                 return false;
             }
+
+            // Start Visualizer
+            void StartVisualizer()
+            {
+                var visualizerPath = @"C:\Users\Drew\Desktop\Repos\JARVIS v2\JARVIS.Visualizer\bin\x64\Debug\net8.0-windows10.0.19041.0\win-x64\JARVIS.Visualizer.exe";  // Full path to Visualizer executable
+
+                // Ensure the file exists
+                if (!File.Exists(visualizerPath))
+                {
+                    Console.WriteLine($"Error: Visualizer not found at {visualizerPath}");
+                    return;
+                }
+
+                try
+                {
+                    // Start the Visualizer process
+                    var visualizerProcess = new Process
+                    {
+                        StartInfo = new ProcessStartInfo
+                        {
+                            FileName = visualizerPath,
+                            Arguments = "start",  // You can add any arguments if needed
+                            UseShellExecute = false, // Set to false for more control
+                            RedirectStandardError = true,  // Capture standard error output
+                            RedirectStandardOutput = true  // Capture standard output
+                        }
+                    };
+
+                    // Attach event handlers for output and error
+                    visualizerProcess.OutputDataReceived += (sender, e) =>
+                    {
+                        if (!string.IsNullOrEmpty(e.Data))
+                        {
+                            Console.WriteLine($"Visualizer Output: {e.Data}");
+                        }
+                    };
+
+                    visualizerProcess.ErrorDataReceived += (sender, e) =>
+                    {
+                        if (!string.IsNullOrEmpty(e.Data))
+                        {
+                            Console.WriteLine($"Visualizer Error: {e.Data}");
+                        }
+                    };
+
+                    visualizerProcess.Start();
+                    visualizerProcess.BeginOutputReadLine();  // Begin capturing output asynchronously
+                    visualizerProcess.BeginErrorReadLine();   // Begin capturing error output asynchronously
+
+                    Console.WriteLine("Visualizer started successfully.");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Error starting Visualizer: {ex.Message}");
+                }
+            }
+
         }
     }
 }
