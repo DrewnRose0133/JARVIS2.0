@@ -10,6 +10,7 @@ using System.Threading.Tasks;
 using System.Linq;
 using JARVIS.Core;
 using JARVIS.Models;
+using JARVIS.Services;
 
 namespace JARVIS
 {
@@ -27,14 +28,15 @@ namespace JARVIS
 
             if (string.IsNullOrEmpty(baseUrl) || string.IsNullOrEmpty(modelId))
             {
-                Console.WriteLine("Error: Please configure LocalAI:BaseUrl and LocalAI:ModelId in appsettings.json.");
+                Console.WriteLine("Error: Please configure LocalAI:BaseUrl and ModelId in appsettings.json.");
                 return;
             }
 
             using var httpClient = new HttpClient { BaseAddress = new Uri(baseUrl) };
-            using var recognizer = new SpeechRecognitionEngine(new System.Globalization.CultureInfo("en-US"));
-            recognizer.SetInputToDefaultAudioDevice();
-            recognizer.LoadGrammar(new DictationGrammar());
+            var wakeListener = new WakeWordListener("hey jarvis");
+            var activeRecognizer = new SpeechRecognitionEngine(new System.Globalization.CultureInfo("en-US"));
+            activeRecognizer.SetInputToDefaultAudioDevice();
+            activeRecognizer.LoadGrammar(new DictationGrammar());
 
             using var synthesizer = new SpeechSynthesizer();
             synthesizer.SetOutputToDefaultAudioDevice();
@@ -46,8 +48,17 @@ namespace JARVIS
             var memoryManager = new MemoryManager();
 
             string userInput = "";
+            bool isAwake = false;
 
-            recognizer.SpeechRecognized += (s, e) =>
+            wakeListener.WakeWordDetected += () =>
+            {
+                synthesizer.Speak("Yes, sir?");
+                Console.WriteLine("[WakeWord] Wake word detected. Active listening...");
+                activeRecognizer.RecognizeAsync(RecognizeMode.Multiple);
+                isAwake = true;
+            };
+
+            activeRecognizer.SpeechRecognized += (s, e) =>
             {
                 if (e.Result != null)
                 {
@@ -56,26 +67,31 @@ namespace JARVIS
                 }
             };
 
-            recognizer.RecognizeAsync(RecognizeMode.Multiple);
-
-            Console.WriteLine("JARVIS is online, sir. Awaiting your command.");
-            synthesizer.Speak("JARVIS is online, sir. Awaiting your command.");
+            wakeListener.Start();
+            Console.WriteLine("JARVIS is sleeping. Listening for wake word...");
+            synthesizer.Speak("System online, sir. Awaiting activation.");
 
             while (true)
             {
+                if (!isAwake)
+                {
+                    await Task.Delay(500);
+                    continue;
+                }
+
                 if (string.IsNullOrWhiteSpace(userInput))
                 {
                     await Task.Delay(500);
                     continue;
                 }
 
-                // === Special Voice Commands ===
+                // === Special Commands
                 if (userInput.ToLower().Contains("enable sarcasm"))
                 {
                     moodController.SarcasmEnabled = true;
                     Console.WriteLine("JARVIS: Sarcasm enabled.");
                     synthesizer.Speak("Sarcasm enabled, sir.");
-                    userInput = "";
+                    ResetRecognition();
                     continue;
                 }
                 if (userInput.ToLower().Contains("disable sarcasm"))
@@ -83,7 +99,7 @@ namespace JARVIS
                     moodController.SarcasmEnabled = false;
                     Console.WriteLine("JARVIS: Sarcasm disabled.");
                     synthesizer.Speak("Sarcasm disabled, sir.");
-                    userInput = "";
+                    ResetRecognition();
                     continue;
                 }
                 if (userInput.ToLower().Contains("lighthearted"))
@@ -91,7 +107,7 @@ namespace JARVIS
                     moodController.CurrentMood = Mood.Lighthearted;
                     Console.WriteLine("JARVIS: Mood changed to lighthearted.");
                     synthesizer.Speak("Mood changed to lighthearted, sir.");
-                    userInput = "";
+                    ResetRecognition();
                     continue;
                 }
                 if (userInput.ToLower().Contains("serious"))
@@ -99,7 +115,7 @@ namespace JARVIS
                     moodController.CurrentMood = Mood.Serious;
                     Console.WriteLine("JARVIS: Mood changed to serious.");
                     synthesizer.Speak("Mood changed to serious, sir.");
-                    userInput = "";
+                    ResetRecognition();
                     continue;
                 }
                 if (userInput.ToLower().Contains("emergency mode"))
@@ -107,7 +123,7 @@ namespace JARVIS
                     moodController.CurrentMood = Mood.Emergency;
                     Console.WriteLine("JARVIS: Emergency mode activated.");
                     synthesizer.Speak("Emergency mode activated, sir.");
-                    userInput = "";
+                    ResetRecognition();
                     continue;
                 }
                 if (userInput.ToLower().Contains("resume normal operations"))
@@ -115,7 +131,7 @@ namespace JARVIS
                     moodController.CurrentMood = Mood.Serious;
                     Console.WriteLine("JARVIS: Resuming normal operations.");
                     synthesizer.Speak("Resuming normal operations, sir.");
-                    userInput = "";
+                    ResetRecognition();
                     continue;
                 }
                 if (userInput.ToLower().Contains("save memory"))
@@ -123,7 +139,7 @@ namespace JARVIS
                     memoryManager.SaveMemory(conversation.GetMessages());
                     Console.WriteLine("JARVIS: Memory saved.");
                     synthesizer.Speak("Memory saved, sir.");
-                    userInput = "";
+                    ResetRecognition();
                     continue;
                 }
                 if (userInput.ToLower().Contains("load memory"))
@@ -139,7 +155,7 @@ namespace JARVIS
                     }
                     Console.WriteLine("JARVIS: Memory loaded.");
                     synthesizer.Speak("Memory loaded, sir.");
-                    userInput = "";
+                    ResetRecognition();
                     continue;
                 }
                 if (userInput.ToLower().StartsWith("remember that"))
@@ -148,11 +164,11 @@ namespace JARVIS
                     conversation.AddKnowledgeFact(fact);
                     Console.WriteLine("JARVIS: Fact recorded.");
                     synthesizer.Speak("Fact recorded, sir.");
-                    userInput = "";
+                    ResetRecognition();
                     continue;
                 }
 
-                // === Normal Conversation ===
+                // === Normal Conversation
                 conversation.AddUserMessage(userInput);
                 var prompt = conversation.BuildPrompt(moodController);
 
@@ -178,7 +194,7 @@ namespace JARVIS
                 catch (Exception ex)
                 {
                     Console.WriteLine($"Error querying LocalAI: {ex.Message}");
-                    userInput = "";
+                    ResetRecognition();
                     continue;
                 }
 
@@ -241,7 +257,21 @@ namespace JARVIS
                     }
                 }
 
+                ResetRecognition();
+            }
+
+            void ResetRecognition()
+            {
+                try
+                {
+                    activeRecognizer.RecognizeAsyncStop();
+                }
+                catch { }
+
+                isAwake = false;
                 userInput = "";
+                wakeListener.Start();
+                Console.WriteLine("[WakeWord] Returning to sleep mode...");
             }
         }
     }
