@@ -12,6 +12,7 @@ using JARVIS.Core;
 using JARVIS.Models;
 using JARVIS.Services;
 using JARVIS.Shared;
+using Fleck;
 
 namespace JARVIS
 {
@@ -19,6 +20,13 @@ namespace JARVIS
     {
         static async Task Main(string[] args)
         {
+            var visualizerServer = new VisualizerSocketServer();
+            visualizerServer.Start();
+
+            // Later in code:
+            visualizerServer.Broadcast("Listening");
+
+
             var config = new ConfigurationBuilder()
                 .SetBasePath(AppContext.BaseDirectory)
                 .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
@@ -37,7 +45,7 @@ namespace JARVIS
 
             // Initialize HttpClient for querying LocalAI
             using var httpClient = new HttpClient { BaseAddress = new Uri(baseUrl) };
-            var wakeListener = new WakeWordListener("hey jarvis");
+            var wakeListener = new WakeWordListener("hey jarvis you there");
             var activeRecognizer = new SpeechRecognitionEngine(new System.Globalization.CultureInfo("en-US"));
             activeRecognizer.SetInputToDefaultAudioDevice();
             activeRecognizer.LoadGrammar(new DictationGrammar());
@@ -60,6 +68,7 @@ namespace JARVIS
                 Console.WriteLine("[Location] Attempting to auto-detect city...");
                 cityName = await LocationHelper.GetCityAsync();
                 Console.WriteLine($"[Location] Detected City: {cityName}");
+                visualizerServer.Broadcast("Speaking");
             }
 
             string userInput = "";
@@ -74,7 +83,9 @@ namespace JARVIS
                 catch { }
 
                 synthesizer.Speak("Yes, sir?");
+                visualizerServer.Broadcast("Speaking");
                 Console.WriteLine("[WakeWord] Wake word detected. Switching to active listening...");
+                visualizerServer.Broadcast("Listening");
 
                 try
                 {
@@ -94,12 +105,14 @@ namespace JARVIS
                 {
                     userInput = e.Result.Text;
                     Console.WriteLine($"You: {userInput}");
+                    visualizerServer.Broadcast("Processing");
                 }
             };
 
             wakeListener.Start();
             Console.WriteLine("JARVIS is sleeping. Listening for wake word...");
             synthesizer.Speak("System online, sir. Awaiting activation.");
+            visualizerServer.Broadcast("Idle");
 
             try
             {
@@ -134,7 +147,9 @@ namespace JARVIS
                 {
                     var weatherReport = await weatherCollector.GetWeatherAsync(cityName);
                     Console.WriteLine($"JARVIS: {weatherReport}");
+                    visualizerServer.Broadcast("Speaking");
                     synthesizer.Speak(weatherReport);
+                    
                     ResetRecognition();
                     continue;
                 }
@@ -144,7 +159,9 @@ namespace JARVIS
                 {
                     var report = await SystemMonitor.GetStatusReportAsync();
                     Console.WriteLine($"JARVIS: {report}");
+                    visualizerServer.Broadcast("Speaking");
                     synthesizer.Speak(report);
+                    
                     ResetRecognition();
                     continue;
                 }
@@ -153,7 +170,9 @@ namespace JARVIS
                     var cpu = await SystemMonitor.GetCpuUsageAsync();
                     string cpuReport = cpu < 0 ? "Unable to retrieve CPU usage, sir." : $"Current CPU usage is {cpu:F1}%.";
                     Console.WriteLine($"JARVIS: {cpuReport}");
+                    visualizerServer.Broadcast("Speaking");
                     synthesizer.Speak(cpuReport);
+                    
                     ResetRecognition();
                     continue;
                 }
@@ -162,7 +181,9 @@ namespace JARVIS
                     var memory = SystemMonitor.GetMemoryUsage();
                     string memoryReport = memory < 0 ? "Unable to retrieve memory usage, sir." : $"Current memory usage is {memory:F1}%.";
                     Console.WriteLine($"JARVIS: {memoryReport}");
+                    visualizerServer.Broadcast("Speaking");
                     synthesizer.Speak(memoryReport);
+                    
                     ResetRecognition();
                     continue;
                 }
@@ -170,7 +191,9 @@ namespace JARVIS
                 {
                     var diskReport = SystemMonitor.GetDiskUsage();
                     Console.WriteLine($"JARVIS: {diskReport}");
+                    visualizerServer.Broadcast("Speaking");
                     synthesizer.Speak(diskReport);
+                    
                     ResetRecognition();
                     continue;
                 }
@@ -178,7 +201,9 @@ namespace JARVIS
                 {
                     var internetReport = await SystemMonitor.GetInternetStatusAsync();
                     Console.WriteLine($"JARVIS: {internetReport}");
+                    visualizerServer.Broadcast("Speaking");
                     synthesizer.Speak(internetReport);
+                    
                     ResetRecognition();
                     continue;
                 }
@@ -191,7 +216,9 @@ namespace JARVIS
                                   "unknown room";
                     var result = await smartHomeController.TurnOnLightAsync(room);
                     Console.WriteLine($"JARVIS: {result}");
+                    visualizerServer.Broadcast("Speaking");
                     synthesizer.Speak(result);
+                    
                     ResetRecognition();
                     continue;
                 }
@@ -203,7 +230,9 @@ namespace JARVIS
                                   "unknown room";
                     var result = await smartHomeController.TurnOffLightAsync(room);
                     Console.WriteLine($"JARVIS: {result}");
+                    visualizerServer.Broadcast("Speaking");
                     synthesizer.Speak(result);
+                    
                     ResetRecognition();
                     continue;
                 }
@@ -212,7 +241,9 @@ namespace JARVIS
                 {
                     var result = await smartHomeController.OpenGarageDoorAsync();
                     Console.WriteLine($"JARVIS: {result}");
+                    visualizerServer.Broadcast("Speaking");
                     synthesizer.Speak(result);
+                    
                     ResetRecognition();
                     continue;
                 }
@@ -221,7 +252,9 @@ namespace JARVIS
                 {
                     var result = await smartHomeController.CloseGarageDoorAsync();
                     Console.WriteLine($"JARVIS: {result}");
+                    visualizerServer.Broadcast("Speaking");
                     synthesizer.Speak(result);
+                    
                     ResetRecognition();
                     continue;
                 }
@@ -307,6 +340,7 @@ namespace JARVIS
 
                 jarvisReply = jarvisReply.Trim();
                 Console.WriteLine($"\nJARVIS: {jarvisReply}");
+                visualizerServer.Broadcast("Speaking");
 
                 if (!string.IsNullOrEmpty(jarvisReply))
                 {
@@ -344,6 +378,7 @@ namespace JARVIS
                 catch { }
 
                 Console.WriteLine("[WakeWord] Returning to sleep mode...");
+                visualizerServer.Broadcast("Idle");
             }
 
             // Helper: handle sarcasm/mood/memory special commands
@@ -355,49 +390,63 @@ namespace JARVIS
                 {
                     mood.SarcasmEnabled = true;
                     Console.WriteLine("JARVIS: Sarcasm enabled.");
+                    visualizerServer.Broadcast("Processing");
                     synth.Speak("Sarcasm enabled, sir.");
+                    
                     return true;
                 }
                 if (cmd.Contains("disable sarcasm"))
                 {
                     mood.SarcasmEnabled = false;
                     Console.WriteLine("JARVIS: Sarcasm disabled.");
+                    visualizerServer.Broadcast("Processing");
                     synth.Speak("Sarcasm disabled, sir.");
+                    
                     return true;
                 }
                 if (cmd.Contains("lighthearted"))
                 {
                     mood.CurrentMood = Mood.Lighthearted;
                     Console.WriteLine("JARVIS: Mood changed to lighthearted.");
+                    visualizerServer.Broadcast("Processing");
                     synth.Speak("Mood changed to lighthearted, sir.");
+                    
                     return true;
                 }
                 if (cmd.Contains("serious"))
                 {
                     mood.CurrentMood = Mood.Serious;
                     Console.WriteLine("JARVIS: Mood changed to serious.");
+                    visualizerServer.Broadcast("Processing");
                     synth.Speak("Mood changed to serious, sir.");
+                    
                     return true;
                 }
                 if (cmd.Contains("emergency mode"))
                 {
                     mood.CurrentMood = Mood.Emergency;
                     Console.WriteLine("JARVIS: Emergency mode activated.");
+                    visualizerServer.Broadcast("Processing");
                     synth.Speak("Emergency mode activated, sir.");
+                    
                     return true;
                 }
                 if (cmd.Contains("resume normal operations"))
                 {
                     mood.CurrentMood = Mood.Serious;
                     Console.WriteLine("JARVIS: Resuming normal operations.");
+                    visualizerServer.Broadcast("Processing");
                     synth.Speak("Resuming normal operations, sir.");
+                    
                     return true;
                 }
                 if (cmd.Contains("save memory"))
                 {
                     memory.SaveMemory(convo.GetMessages());
                     Console.WriteLine("JARVIS: Memory saved.");
+                    visualizerServer.Broadcast("Processing");
                     synth.Speak("Memory saved, sir.");
+                    
                     return true;
                 }
                 if (cmd.Contains("load memory"))
@@ -412,7 +461,9 @@ namespace JARVIS
                             convo.AddAssistantMessage(msg.Content);
                     }
                     Console.WriteLine("JARVIS: Memory loaded.");
+                    visualizerServer.Broadcast("Processing");
                     synth.Speak("Memory loaded, sir.");
+                    
                     return true;
                 }
                 if (cmd.StartsWith("remember that"))
@@ -420,14 +471,14 @@ namespace JARVIS
                     var fact = command.Replace("remember that", "", StringComparison.OrdinalIgnoreCase).Trim();
                     convo.AddKnowledgeFact(fact);
                     Console.WriteLine("JARVIS: Fact recorded.");
+                    visualizerServer.Broadcast("Processing");
                     synth.Speak("Fact recorded, sir.");
+                    
                     return true;
                 }
 
                 return false;
-            }
-
-            
+            }         
 
         }
     }
