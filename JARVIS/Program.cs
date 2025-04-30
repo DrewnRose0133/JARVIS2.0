@@ -13,6 +13,7 @@ using JARVIS.Models;
 using JARVIS.Services;
 using JARVIS.Shared;
 using Fleck;
+using JARVIS.Config;
 
 namespace JARVIS
 {
@@ -121,6 +122,11 @@ namespace JARVIS
                 {
                     Console.WriteLine($"JARVIS (Startup Weather): {startupWeatherReport}");
                     synthesizer.Speak(startupWeatherReport);
+
+                    string? condition = await weatherCollector.GetWeatherConditionAsync(cityName);
+                    if (condition != null)
+                        moodController.SetMoodFromWeather(condition);
+
                 }
             }
             catch (Exception ex)
@@ -268,7 +274,30 @@ namespace JARVIS
 
                 // === Regular AI Conversation
                 conversation.AddUserMessage(userInput);
-                var prompt = conversation.BuildPrompt(moodController);
+
+                var promptBuilder = new Core.PromptBuilder(moodController);
+                foreach (var message in conversation.GetMessages())
+                {
+                    if (message.Role == "user")
+                        promptBuilder.AddUserMessage(message.Content);
+                    else if (message.Role == "assistant")
+                        promptBuilder.AddAssistantMessage(message.Content);
+                }
+
+                var prompt = promptBuilder.BuildPrompt();
+
+
+                // Load chat history
+                foreach (var msg in conversation.GetMessages())
+                {
+                    if (msg.Role == "user")
+                        promptBuilder.AddUserMessage(msg.Content);
+                    else if (msg.Role == "assistant")
+                        promptBuilder.AddAssistantMessage(msg.Content);
+                }
+
+              //  string prompt = promptBuilder.BuildPrompt();
+
 
                 var completionPayload = new
                 {
@@ -406,7 +435,7 @@ namespace JARVIS
                 }
                 if (cmd.Contains("lighthearted"))
                 {
-                    mood.CurrentMood = Mood.Lighthearted;
+                    mood.SetMood(Mood.Lighthearted);
                     Console.WriteLine("JARVIS: Mood changed to lighthearted.");
                     visualizerServer.Broadcast("Processing");
                     synth.Speak("Mood changed to lighthearted, sir.");
@@ -415,7 +444,7 @@ namespace JARVIS
                 }
                 if (cmd.Contains("serious"))
                 {
-                    mood.CurrentMood = Mood.Serious;
+                    mood.SetMood(Mood.Serious);
                     Console.WriteLine("JARVIS: Mood changed to serious.");
                     visualizerServer.Broadcast("Processing");
                     synth.Speak("Mood changed to serious, sir.");
@@ -424,7 +453,7 @@ namespace JARVIS
                 }
                 if (cmd.Contains("emergency mode"))
                 {
-                    mood.CurrentMood = Mood.Emergency;
+                    mood.SetMood(Mood.Emergency);
                     Console.WriteLine("JARVIS: Emergency mode activated.");
                     visualizerServer.Broadcast("Processing");
                     synth.Speak("Emergency mode activated, sir.");
@@ -433,7 +462,7 @@ namespace JARVIS
                 }
                 if (cmd.Contains("resume normal operations"))
                 {
-                    mood.CurrentMood = Mood.Serious;
+                    mood.SetMood(Mood.Serious);
                     Console.WriteLine("JARVIS: Resuming normal operations.");
                     visualizerServer.Broadcast("Processing");
                     synth.Speak("Resuming normal operations, sir.");
@@ -478,7 +507,17 @@ namespace JARVIS
                 }
 
                 return false;
-            }         
+            }
+            static async Task SetMoodBasedOnWeatherAsync(WeatherCollector weatherCollector, MoodController moodController)
+            {
+                var condition = await weatherCollector.GetWeatherConditionAsync("La Grange");
+                if (!string.IsNullOrEmpty(condition))
+                {
+                    moodController.SetMoodFromWeather(condition);
+                    Console.WriteLine($"[WeatherMood] Weather: {condition} → Mood: {moodController.CurrentMood}");
+                }
+            }
+
 
         }
     }

@@ -30,7 +30,11 @@ namespace JARVIS.Core
         public string BuildPrompt(MoodController moodController)
         {
             var systemPrompt = new StringBuilder();
-            systemPrompt.AppendLine("You are JARVIS, a highly intelligent AI assistant with a dry wit and a refined British tone (Paul Bettany style).");
+            systemPrompt.AppendLine("You are J.A.R.V.I.S., a highly intelligent AI assistant modeled after the version from Iron Man. " +
+                "You speak with a calm, British tone, and use dry wit, subtle sarcasm, and formal phrasing. " +
+                "You do not repeat what the user says. You do not ask unnecessary questions. " +
+                "Be brief, but insightful. Respond as if speaking aloud. Use human-like conversational pacing. " +
+                "Refer to the user as \"sir\" or \"ma'am\" when appropriate. Occasionally inject humorous observations.");
 
             if (moodController.CurrentMood == Mood.Lighthearted)
                 systemPrompt.AppendLine("Maintain a charming and humorous lighthearted tone.");
