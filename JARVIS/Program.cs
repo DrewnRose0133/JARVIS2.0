@@ -56,7 +56,10 @@ namespace JARVIS
             var moodController = new MoodController();
             moodController.ApplyPersonalityPreset("witty advisor");
 
-            var promptEngine = new PromptEngine("JARVIS", "Witty", "Advisor", moodController);
+
+            var characterController = new CharacterModeController();
+            var promptEngine = new PromptEngine("JARVIS", "Witty", "Advisor", moodController, characterController);
+
             var conversation = new ConversationEngine(promptEngine);
             var memoryManager = new MemoryManager();
             var weatherCollector = new WeatherCollector(weatherApiKey);
@@ -76,7 +79,14 @@ namespace JARVIS
 
             wakeListener.WakeWordDetected += () =>
             {
+                lastInputTime = DateTime.Now;
+
                 try { wakeListener.Stop(); } catch { }
+
+                var preamble = characterController.GetPreamble();
+                if (!string.IsNullOrWhiteSpace(preamble))
+                    synthesizer.Speak(preamble);
+
                 synthesizer.Speak("Yes, sir?");
                 visualizerServer.Broadcast("Speaking");
                 Console.WriteLine("[WakeWord] Wake word detected. Switching to active listening...");
@@ -102,6 +112,10 @@ namespace JARVIS
 
             wakeListener.Start();
             Console.WriteLine("JARVIS is sleeping. Listening for wake word...");
+            var preamble = characterController.GetPreamble();
+            if (!string.IsNullOrWhiteSpace(preamble))
+                synthesizer.Speak(preamble);
+
             synthesizer.Speak("System online, sir. Awaiting activation.");
             visualizerServer.Broadcast("Idle");
 
@@ -124,6 +138,18 @@ namespace JARVIS
             {
                 input = input.ToLower();
 
+                if (input.StartsWith("mode "))
+                {
+                    var modeName = input.Replace("mode", "", StringComparison.OrdinalIgnoreCase).Trim();
+                    if (Enum.TryParse<CharacterMode>(modeName, true, out var newMode))
+                    {
+                        characterController.CurrentMode = newMode;
+                        var description = characterController.DescribeMode();
+                        Console.WriteLine($"JARVIS: Character mode set to {newMode}.");
+                        synthesizer.Speak($"Character mode set to {newMode}, sir. {description}");
+                        return true;
+                    }
+                }
                 if (input.StartsWith("personality "))
                 {
                     var preset = input.Replace("personality", "", StringComparison.OrdinalIgnoreCase).Trim();
@@ -205,6 +231,9 @@ namespace JARVIS
                     Console.WriteLine($"JARVIS: {response}");
 
                     visualizerServer.Broadcast("Speaking");
+                    
+                    if (!string.IsNullOrWhiteSpace(preamble))
+                        synthesizer.Speak(preamble);
                     synthesizer.Speak(response);
 
                     ResetRecognition();

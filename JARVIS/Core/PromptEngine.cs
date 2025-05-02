@@ -11,13 +11,15 @@ namespace JARVIS.Core
         private readonly string _tone;
         private readonly string _mode;
         private readonly MoodController _moodController;
+        private readonly CharacterModeController _characterController;
 
-        public PromptEngine(string assistantName, string tone, string mode, MoodController moodController)
+        public PromptEngine(string assistantName, string tone, string mode, MoodController moodController, CharacterModeController characterController)
         {
             _assistantName = assistantName;
             _tone = tone;
             _mode = mode;
             _moodController = moodController;
+            _characterController = characterController;
         }
 
         public string BuildPrompt(List<Message> messages)
@@ -25,7 +27,9 @@ namespace JARVIS.Core
             var systemPrompt = new StringBuilder();
             systemPrompt.AppendLine($"You are J.A.R.V.I.S., an intelligent AI assistant modeled after the Iron Man films." +
                 $"You speak like a composed British butler with subtle humor and logic.");
-            systemPrompt.AppendLine($"Tone: {_tone}, Mood: {_moodController.CurrentMood}, Mode: {_mode}");
+            systemPrompt.AppendLine($"Tone: {_tone}, Mood: {_moodController.CurrentMood}, Mode: {_mode}, Character: {_characterController.CurrentMode}");
+            systemPrompt.AppendLine("// " + _characterController.DescribeMode());
+
 
             if (_moodController.CurrentMood == Mood.Lighthearted)
                 systemPrompt.AppendLine("Maintain a charming and humorous lighthearted tone.");
