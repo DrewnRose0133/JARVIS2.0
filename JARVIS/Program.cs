@@ -21,10 +21,8 @@ namespace JARVIS
     {
         static async Task Main(string[] args)
         {
-            var visualizerServer = new VisualizerSocketServer();
-            visualizerServer.Start();
-            visualizerServer.Broadcast("Listening");
-
+            var visualizerServer = StartupEngine.InitializeVisualizer();
+            bool isAwake = false;
             var config = new ConfigurationBuilder()
                 .SetBasePath(AppContext.BaseDirectory)
                 .AddJsonFile("appsettings.json", optional: false, reloadOnChange: true)
@@ -32,38 +30,32 @@ namespace JARVIS
 
             var baseUrl = config["LocalAI:BaseUrl"];
             var modelId = config["LocalAI:ModelId"];
-            var weatherApiKey = config["OpenWeather:ApiKey"];
-            var cityName = config["OpenWeather:City"];
             var sleepTimeoutSeconds = int.TryParse(config["Settings:SleepTimeoutSeconds"], out var val) ? val : 15;
 
-            if (string.IsNullOrEmpty(baseUrl) || string.IsNullOrEmpty(modelId) || string.IsNullOrEmpty(weatherApiKey))
+            if (string.IsNullOrEmpty(baseUrl) || string.IsNullOrEmpty(modelId))
             {
-                Console.WriteLine("Error: Please configure LocalAI and OpenWeather settings in appsettings.json.");
+                Console.WriteLine("Error: Please configure LocalAI settings in appsettings.json.");
                 return;
             }
 
             using var httpClient = new HttpClient { BaseAddress = new Uri(baseUrl) };
-            var wakeListener = new WakeWordListener("hey jarvis you there");
-            var activeRecognizer = new SpeechRecognitionEngine(new System.Globalization.CultureInfo("en-US"));
-            activeRecognizer.SetInputToDefaultAudioDevice();
-            activeRecognizer.LoadGrammar(new DictationGrammar());
 
-            using var synthesizer = new SpeechSynthesizer();
-            synthesizer.SetOutputToDefaultAudioDevice();
-            synthesizer.Volume = 100;
-            synthesizer.Rate = 0;
+            var (weatherCollector, smartHomeController, suggestionEngine, cityName) = ServiceInitializer.InitializeServices(config);
+            var activeRecognizer = AudioEngine.InitializeRecognizer();
+            using var synthesizer = AudioEngine.InitializeSynthesizer();
+            var (conversation, promptEngine, moodController, characterController) = JarvisInitializer.InitializeConversation();
 
-            var moodController = new MoodController();
-            moodController.ApplyPersonalityPreset("witty advisor");
+            var wakeListener = StartupEngine.InitializeWakeWord("hey jarvis you there", () =>
+            {
+                synthesizer.Speak(characterController.GetPreamble());
+                visualizerServer.Broadcast("Speaking");
+                Console.WriteLine("[WakeWord] Wake word detected. Switching to active listening...");
+                visualizerServer.Broadcast("Listening");
+                try { activeRecognizer.RecognizeAsync(RecognizeMode.Multiple); } catch { }
+                isAwake = true;
+            });
 
-
-            var characterController = new CharacterModeController();
-            var promptEngine = new PromptEngine("JARVIS", "Witty", "Advisor", moodController, characterController);
-
-            var conversation = new ConversationEngine(promptEngine);
             var memoryManager = new MemoryManager();
-            var weatherCollector = new WeatherCollector(weatherApiKey);
-            var smartHomeController = new SmartHomeController();
 
             if (string.IsNullOrWhiteSpace(cityName))
             {
@@ -75,28 +67,34 @@ namespace JARVIS
 
             string userInput = "";
             DateTime lastInputTime = DateTime.Now;
-            bool isAwake = false;
-
-            wakeListener.WakeWordDetected += () =>
+            Task.Run(() =>
             {
-                lastInputTime = DateTime.Now;
+                while (true)
+                {
+                    var typedInput = Console.ReadLine();
+                    if (!string.IsNullOrWhiteSpace(typedInput))
+                    {
+                        userInput = typedInput;
+                        isAwake = true;
+                        lastInputTime = DateTime.Now;
+                    }
+                }
+            });
+            string latestWeather = await weatherCollector.GetWeatherAsync(cityName);
 
-                try { wakeListener.Stop(); } catch { }
+            if (!string.IsNullOrEmpty(latestWeather))
+            {
+                moodController.AdjustMoodBasedOnWeather(latestWeather);
+                Console.WriteLine($"JARVIS (Startup Weather): {latestWeather}");
+                synthesizer.Speak(latestWeather);
 
-                var preamble = characterController.GetPreamble();
-                if (!string.IsNullOrWhiteSpace(preamble))
-                    synthesizer.Speak(preamble);
-
-                synthesizer.Speak("Yes, sir?");
-                visualizerServer.Broadcast("Speaking");
-                Console.WriteLine("[WakeWord] Wake word detected. Switching to active listening...");
-                visualizerServer.Broadcast("Listening");
-
-                try { activeRecognizer.RecognizeAsync(RecognizeMode.Multiple); }
-                catch (InvalidOperationException) { }
-
-                isAwake = true;
-            };
+                var suggestion = suggestionEngine.CheckForSuggestion(DateTime.Now, latestWeather);
+                if (!string.IsNullOrEmpty(suggestion))
+                {
+                    Console.WriteLine($"JARVIS: {suggestion}");
+                    synthesizer.Speak(suggestion);
+                }
+            }
 
             activeRecognizer.SpeechRecognized += (s, e) =>
             {
@@ -112,26 +110,71 @@ namespace JARVIS
 
             wakeListener.Start();
             Console.WriteLine("JARVIS is sleeping. Listening for wake word...");
-            var preamble = characterController.GetPreamble();
-            if (!string.IsNullOrWhiteSpace(preamble))
-                synthesizer.Speak(preamble);
-
             synthesizer.Speak("System online, sir. Awaiting activation.");
             visualizerServer.Broadcast("Idle");
 
-            try
+            while (true)
             {
-                var startupWeatherReport = await weatherCollector.GetWeatherAsync(cityName);
-                if (!string.IsNullOrEmpty(startupWeatherReport))
+                if (isAwake && (DateTime.Now - lastInputTime).TotalSeconds > sleepTimeoutSeconds)
                 {
-                    moodController.AdjustMoodBasedOnWeather(startupWeatherReport);
-                    Console.WriteLine($"JARVIS (Startup Weather): {startupWeatherReport}");
-                    synthesizer.Speak(startupWeatherReport);
+                    Console.WriteLine("No input received. Returning to sleep mode.");
+                    synthesizer.Speak($"No input received for {sleepTimeoutSeconds} seconds. Returning to sleep mode, sir.");
+                    ResetRecognition();
+                    continue;
                 }
+
+                if (!isAwake || string.IsNullOrWhiteSpace(userInput))
+                {
+                    await Task.Delay(500);
+                    continue;
+                }
+
+                if (HandleJarvisCommand(userInput))
+                {
+                    userInput = "";
+                    continue;
+                }
+
+                if (conversation.IsRepeatedInput(userInput))
+                {
+                    var interruption = "We've already discussed that, sir. Shall I repeat myself?";
+                    Console.WriteLine($"JARVIS: {interruption}");
+                    synthesizer.Speak(interruption);
+                    ResetRecognition();
+                    continue;
+                }
+
+                conversation.AddUserMessage(userInput);
+                var prompt = conversation.BuildPrompt();
+                Console.WriteLine($"Prompt:\n{prompt}");
+
+                visualizerServer.Broadcast("Thinking");
+                var response = await LocalAIAgent.GetResponseAsync(httpClient, modelId, prompt);
+                conversation.AddAssistantMessage(response);
+                Console.WriteLine($"JARVIS: {response}");
+
+                var suggestion = suggestionEngine.CheckForSuggestion(DateTime.Now, latestWeather);
+                if (!string.IsNullOrEmpty(suggestion))
+                {
+                    Console.WriteLine($"JARVIS: {suggestion}");
+                    synthesizer.Speak(suggestion);
+                }
+
+                visualizerServer.Broadcast("Speaking");
+                synthesizer.Speak(characterController.GetPreamble());
+                synthesizer.Speak(response);
+                conversation.TrackConversation(userInput, response);
+                ResetRecognition();
             }
-            catch (Exception ex)
+
+            void ResetRecognition()
             {
-                Console.WriteLine($"[Startup Weather Error]: {ex.Message}");
+                try { activeRecognizer.RecognizeAsyncStop(); } catch { }
+                isAwake = false;
+                userInput = "";
+                try { wakeListener.Start(); } catch { }
+                Console.WriteLine("[WakeWord] Returning to sleep mode...");
+                visualizerServer.Broadcast("Idle");
             }
 
             bool HandleJarvisCommand(string input)
@@ -150,6 +193,7 @@ namespace JARVIS
                         return true;
                     }
                 }
+
                 if (input.StartsWith("personality "))
                 {
                     var preset = input.Replace("personality", "", StringComparison.OrdinalIgnoreCase).Trim();
@@ -161,10 +205,10 @@ namespace JARVIS
 
                 if (input.Contains("weather") || input.Contains("forecast") || input.Contains("outside"))
                 {
-                    var weatherReport = weatherCollector.GetWeatherAsync(cityName).Result;
-                    moodController.AdjustMoodBasedOnWeather(weatherReport);
-                    Console.WriteLine($"JARVIS: {weatherReport}");
-                    synthesizer.Speak(weatherReport);
+                    latestWeather = weatherCollector.GetWeatherAsync(cityName).Result;
+                    moodController.AdjustMoodBasedOnWeather(latestWeather);
+                    Console.WriteLine($"JARVIS: {latestWeather}");
+                    synthesizer.Speak(latestWeather);
                     return true;
                 }
 
@@ -195,60 +239,6 @@ namespace JARVIS
                 }
 
                 return false;
-            }
-
-            while (true)
-            {
-                if (isAwake && (DateTime.Now - lastInputTime).TotalSeconds > sleepTimeoutSeconds)
-                {
-                    Console.WriteLine("No input received. Returning to sleep mode.");
-                    synthesizer.Speak($"No input received for {sleepTimeoutSeconds} seconds. Returning to sleep mode, sir.");
-                    ResetRecognition();
-                    continue;
-                }
-                if (!isAwake || string.IsNullOrWhiteSpace(userInput))
-                {
-                    await Task.Delay(500);
-                    continue;
-                }
-
-                bool handled = HandleJarvisCommand(userInput);
-                if (handled)
-                {
-                    userInput = "";
-                    continue;
-                }
-                else
-                {
-                    conversation.AddUserMessage(userInput);
-                    var prompt = conversation.BuildPrompt();
-                    Console.WriteLine($"Prompt:\n{prompt}");
-
-                    visualizerServer.Broadcast("Thinking");
-                    var response = await LocalAIAgent.GetResponseAsync(httpClient, modelId, prompt);
-
-                    conversation.AddAssistantMessage(response);
-                    Console.WriteLine($"JARVIS: {response}");
-
-                    visualizerServer.Broadcast("Speaking");
-                    
-                    if (!string.IsNullOrWhiteSpace(preamble))
-                        synthesizer.Speak(preamble);
-                    synthesizer.Speak(response);
-
-                    ResetRecognition();
-                }
-                
-            }
-
-            void ResetRecognition()
-            {
-                try { activeRecognizer.RecognizeAsyncStop(); } catch { }
-                isAwake = false;
-                userInput = "";
-                try { wakeListener.Start(); } catch { }
-                Console.WriteLine("[WakeWord] Returning to sleep mode...");
-                visualizerServer.Broadcast("Idle");
             }
         }
     }

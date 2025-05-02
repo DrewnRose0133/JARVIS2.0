@@ -9,6 +9,8 @@ namespace JARVIS.Core
         private readonly List<Message> _messages = new List<Message>();
         private const int MaxMessages = 20;
         private readonly PromptEngine _promptEngine;
+        private string _lastUserMessage = "";
+        private string _lastAssistantResponse = "";
 
         public ConversationEngine(PromptEngine promptEngine)
         {
@@ -19,6 +21,17 @@ namespace JARVIS.Core
         {
             _messages.Add(new Message { Role = "user", Content = message });
             TrimIfNeeded();
+        }
+
+        public bool IsRepeatedInput(string input)
+        {
+            return _lastUserMessage.Equals(input, StringComparison.OrdinalIgnoreCase);
+        }
+
+        public void TrackConversation(string userMessage, string assistantResponse)
+        {
+            _lastUserMessage = userMessage;
+            _lastAssistantResponse = assistantResponse;
         }
 
         public void AddAssistantMessage(string message)
