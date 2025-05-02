@@ -29,6 +29,10 @@ namespace JARVIS.Core
                 $"You speak like a composed British butler with subtle humor and logic.");
             systemPrompt.AppendLine($"Tone: {_tone}, Mood: {_moodController.CurrentMood}, Mode: {_mode}, Character: {_characterController.CurrentMode}");
             systemPrompt.AppendLine("// " + _characterController.DescribeMode());
+            systemPrompt.AppendLine("Always reply in this format:");
+            systemPrompt.AppendLine("Thought: <your reasoning>");
+            systemPrompt.AppendLine("Action: <what you're doing>");
+            systemPrompt.AppendLine("Response: <what to say to the user>");
 
 
             if (_moodController.CurrentMood == Mood.Lighthearted)

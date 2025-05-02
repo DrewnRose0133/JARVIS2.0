@@ -44,26 +44,11 @@ namespace JARVIS
             var activeRecognizer = AudioEngine.InitializeRecognizer();
             using var synthesizer = AudioEngine.InitializeSynthesizer();
             var (conversation, promptEngine, moodController, characterController) = JarvisInitializer.InitializeConversation();
+            var voiceStyle = new VoiceStyleController(characterController);           
+            var sceneManager = new SceneManager(smartHomeController);
+            var memoryEngine = new MemoryEngine();
+            var commandHandler = new CommandHandler(moodController, characterController, memoryEngine, weatherCollector, sceneManager, synthesizer, voiceStyle, cityName);
 
-            var wakeListener = StartupEngine.InitializeWakeWord("hey jarvis you there", () =>
-            {
-                synthesizer.Speak(characterController.GetPreamble());
-                visualizerServer.Broadcast("Speaking");
-                Console.WriteLine("[WakeWord] Wake word detected. Switching to active listening...");
-                visualizerServer.Broadcast("Listening");
-                try { activeRecognizer.RecognizeAsync(RecognizeMode.Multiple); } catch { }
-                isAwake = true;
-            });
-
-            var memoryManager = new MemoryManager();
-
-            if (string.IsNullOrWhiteSpace(cityName))
-            {
-                Console.WriteLine("[Location] Attempting to auto-detect city...");
-                cityName = await LocationHelper.GetCityAsync();
-                Console.WriteLine($"[Location] Detected City: {cityName}");
-                visualizerServer.Broadcast("Speaking");
-            }
 
             string userInput = "";
             DateTime lastInputTime = DateTime.Now;
@@ -80,6 +65,26 @@ namespace JARVIS
                     }
                 }
             });
+
+            var wakeListener = StartupEngine.InitializeWakeWord("hey jarvis you there", () =>
+            {
+                lastInputTime = DateTime.Now;
+                synthesizer.Speak(characterController.GetPreamble());
+                visualizerServer.Broadcast("Speaking");
+                Console.WriteLine("[WakeWord] Wake word detected. Switching to active listening...");
+                visualizerServer.Broadcast("Listening");
+                try { activeRecognizer.RecognizeAsync(RecognizeMode.Multiple); } catch { }
+                isAwake = true;
+            });
+
+            if (string.IsNullOrWhiteSpace(cityName))
+            {
+                Console.WriteLine("[Location] Attempting to auto-detect city...");
+                cityName = await LocationHelper.GetCityAsync();
+                Console.WriteLine($"[Location] Detected City: {cityName}");
+                visualizerServer.Broadcast("Speaking");
+            }
+
             string latestWeather = await weatherCollector.GetWeatherAsync(cityName);
 
             if (!string.IsNullOrEmpty(latestWeather))
@@ -129,7 +134,7 @@ namespace JARVIS
                     continue;
                 }
 
-                if (HandleJarvisCommand(userInput))
+                if (commandHandler.Handle(userInput))
                 {
                     userInput = "";
                     continue;
@@ -146,12 +151,20 @@ namespace JARVIS
 
                 conversation.AddUserMessage(userInput);
                 var prompt = conversation.BuildPrompt();
-                Console.WriteLine($"Prompt:\n{prompt}");
+                //Console.WriteLine($"Prompt:\n{prompt}");
 
                 visualizerServer.Broadcast("Thinking");
                 var response = await LocalAIAgent.GetResponseAsync(httpClient, modelId, prompt);
-                conversation.AddAssistantMessage(response);
-                Console.WriteLine($"JARVIS: {response}");
+
+                var thought = Extract(response, "Thought:");
+                var action = Extract(response, "Action:");
+                var reply = Extract(response, "Response:");
+
+                if (!string.IsNullOrEmpty(thought)) Console.WriteLine($"[Thought] {thought}");
+                if (!string.IsNullOrEmpty(action)) Console.WriteLine($"[Action] {action}");
+
+                conversation.AddAssistantMessage(reply);
+                Console.WriteLine($"JARVIS: {reply}");
 
                 var suggestion = suggestionEngine.CheckForSuggestion(DateTime.Now, latestWeather);
                 if (!string.IsNullOrEmpty(suggestion))
@@ -161,9 +174,10 @@ namespace JARVIS
                 }
 
                 visualizerServer.Broadcast("Speaking");
+                voiceStyle.ApplyStyle(synthesizer);
                 synthesizer.Speak(characterController.GetPreamble());
-                synthesizer.Speak(response);
-                conversation.TrackConversation(userInput, response);
+                synthesizer.Speak(reply);
+                conversation.TrackConversation(userInput, reply);
                 ResetRecognition();
             }
 
@@ -177,68 +191,15 @@ namespace JARVIS
                 visualizerServer.Broadcast("Idle");
             }
 
-            bool HandleJarvisCommand(string input)
+            static string? Extract(string input, string label)
             {
-                input = input.ToLower();
-
-                if (input.StartsWith("mode "))
+                var lines = input.Split('\n');
+                foreach (var line in lines)
                 {
-                    var modeName = input.Replace("mode", "", StringComparison.OrdinalIgnoreCase).Trim();
-                    if (Enum.TryParse<CharacterMode>(modeName, true, out var newMode))
-                    {
-                        characterController.CurrentMode = newMode;
-                        var description = characterController.DescribeMode();
-                        Console.WriteLine($"JARVIS: Character mode set to {newMode}.");
-                        synthesizer.Speak($"Character mode set to {newMode}, sir. {description}");
-                        return true;
-                    }
+                    if (line.StartsWith(label, StringComparison.OrdinalIgnoreCase))
+                        return line.Replace(label, "", StringComparison.OrdinalIgnoreCase).Trim();
                 }
-
-                if (input.StartsWith("personality "))
-                {
-                    var preset = input.Replace("personality", "", StringComparison.OrdinalIgnoreCase).Trim();
-                    moodController.ApplyPersonalityPreset(preset);
-                    Console.WriteLine($"JARVIS: Personality preset changed to {preset}.");
-                    synthesizer.Speak($"Personality preset changed to {preset}, sir.");
-                    return true;
-                }
-
-                if (input.Contains("weather") || input.Contains("forecast") || input.Contains("outside"))
-                {
-                    latestWeather = weatherCollector.GetWeatherAsync(cityName).Result;
-                    moodController.AdjustMoodBasedOnWeather(latestWeather);
-                    Console.WriteLine($"JARVIS: {latestWeather}");
-                    synthesizer.Speak(latestWeather);
-                    return true;
-                }
-
-                if (input.Contains("cpu usage"))
-                {
-                    var cpu = SystemMonitor.GetCpuUsageAsync().Result;
-                    var response = cpu >= 0 ? $"Current CPU usage is {cpu:F1} percent." : "Unable to retrieve CPU usage, sir.";
-                    Console.WriteLine($"JARVIS: {response}");
-                    synthesizer.Speak(response);
-                    return true;
-                }
-
-                if (input.Contains("memory usage"))
-                {
-                    var memory = SystemMonitor.GetMemoryUsage();
-                    var response = memory >= 0 ? $"Current memory usage is {memory:F1} percent." : "Unable to retrieve memory usage, sir.";
-                    Console.WriteLine($"JARVIS: {response}");
-                    synthesizer.Speak(response);
-                    return true;
-                }
-
-                if (input.Contains("internet status") || input.Contains("network status"))
-                {
-                    var net = SystemMonitor.GetInternetStatusAsync().Result;
-                    Console.WriteLine($"JARVIS: {net}");
-                    synthesizer.Speak(net);
-                    return true;
-                }
-
-                return false;
+                return null;
             }
         }
     }
