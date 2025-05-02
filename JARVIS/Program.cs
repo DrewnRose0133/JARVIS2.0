@@ -13,11 +13,16 @@ using JARVIS.Models;
 using JARVIS.Services;
 using JARVIS.Shared;
 using Fleck;
+using JARVIS.Config;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Options;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace JARVIS
 {
     class Program
     {
+        
         static async Task Main(string[] args)
         {
             var visualizerServer = new VisualizerSocketServer();
@@ -37,11 +42,21 @@ namespace JARVIS
             var weatherApiKey = config["OpenWeather:ApiKey"];
             var cityName = config["OpenWeather:City"];
 
+            var builder = Host.CreateApplicationBuilder(args);
+
+            builder.Services.Configure<LocalAISettings>(
+            builder.Configuration.GetSection("LocalAI")
+            );
+
+
             if (string.IsNullOrEmpty(baseUrl) || string.IsNullOrEmpty(modelId) || string.IsNullOrEmpty(weatherApiKey))
             {
                 Console.WriteLine("Error: Please configure LocalAI and OpenWeather settings in appsettings.json.");
                 return;
             }
+
+            
+
 
             // Initialize HttpClient for querying LocalAI
             using var httpClient = new HttpClient { BaseAddress = new Uri(baseUrl) };
@@ -60,6 +75,8 @@ namespace JARVIS
             var memoryManager = new MemoryManager();
             var weatherCollector = new WeatherCollector(weatherApiKey);
 
+           // await SetMoodBasedOnWeatherAsync(weatherCollector, moodController);
+
             // Initialize the SmartHomeController
             var smartHomeController = new SmartHomeController(); // Declare and initialize the controller
 
@@ -70,6 +87,11 @@ namespace JARVIS
                 Console.WriteLine($"[Location] Detected City: {cityName}");
                 visualizerServer.Broadcast("Speaking");
             }
+
+            string? condition = await weatherCollector.GetWeatherConditionAsync(cityName);
+            if (condition != null)
+                moodController.SetMoodFromWeather(condition);
+
 
             string userInput = "";
             bool isAwake = false;
@@ -268,7 +290,20 @@ namespace JARVIS
 
                 // === Regular AI Conversation
                 conversation.AddUserMessage(userInput);
-                var prompt = conversation.BuildPrompt(moodController);
+                var promptBuilder = new Core.PromptBuilder(moodController);
+
+                // Load chat history
+                foreach (var msg in conversation.GetMessages())
+                {
+                    if (msg.Role == "user")
+                        promptBuilder.AddUserMessage(msg.Content);
+                    else if (msg.Role == "assistant")
+                        promptBuilder.AddAssistantMessage(msg.Content);
+                }
+
+                string prompt = promptBuilder.BuildPrompt();
+
+
 
                 var completionPayload = new
                 {
@@ -406,7 +441,7 @@ namespace JARVIS
                 }
                 if (cmd.Contains("lighthearted"))
                 {
-                    mood.CurrentMood = Mood.Lighthearted;
+                    mood.SetMood(Mood.Lighthearted);
                     Console.WriteLine("JARVIS: Mood changed to lighthearted.");
                     visualizerServer.Broadcast("Processing");
                     synth.Speak("Mood changed to lighthearted, sir.");
@@ -415,7 +450,7 @@ namespace JARVIS
                 }
                 if (cmd.Contains("serious"))
                 {
-                    mood.CurrentMood = Mood.Serious;
+                    mood.SetMood(Mood.Serious);
                     Console.WriteLine("JARVIS: Mood changed to serious.");
                     visualizerServer.Broadcast("Processing");
                     synth.Speak("Mood changed to serious, sir.");
@@ -424,7 +459,7 @@ namespace JARVIS
                 }
                 if (cmd.Contains("emergency mode"))
                 {
-                    mood.CurrentMood = Mood.Emergency;
+                    mood.SetMood(Mood.Emergency);
                     Console.WriteLine("JARVIS: Emergency mode activated.");
                     visualizerServer.Broadcast("Processing");
                     synth.Speak("Emergency mode activated, sir.");
@@ -433,7 +468,7 @@ namespace JARVIS
                 }
                 if (cmd.Contains("resume normal operations"))
                 {
-                    mood.CurrentMood = Mood.Serious;
+                    mood.SetMood(Mood.Serious);
                     Console.WriteLine("JARVIS: Resuming normal operations.");
                     visualizerServer.Broadcast("Processing");
                     synth.Speak("Resuming normal operations, sir.");
@@ -478,7 +513,9 @@ namespace JARVIS
                 }
 
                 return false;
-            }         
+            }
+           
+
 
         }
     }

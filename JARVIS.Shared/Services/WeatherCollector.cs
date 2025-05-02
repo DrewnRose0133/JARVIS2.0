@@ -35,5 +35,28 @@ namespace JARVIS.Shared
                 return "I'm unable to retrieve the weather information at the moment, sir.";
             }
         }
+
+        public async Task<string?> GetWeatherConditionAsync(string city)
+        {
+            try
+            {
+                var response = await _httpClient.GetStringAsync($"https://api.openweathermap.org/data/2.5/weather?q={city}&appid={_apiKey}&units=imperial");
+                var weatherData = JsonDocument.Parse(response);
+
+                // Use "main" field (e.g. Clear, Rain, Snow, Clouds)
+                var condition = weatherData.RootElement
+                    .GetProperty("weather")[0]
+                    .GetProperty("main")
+                    .GetString();
+
+                return condition;
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[WeatherCollector Error]: {ex.Message}");
+                return null;
+            }
+        }
+
     }
 }
