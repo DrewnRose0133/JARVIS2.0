@@ -8,6 +8,12 @@ namespace JARVIS.Core
     {
         private readonly List<Message> _messages = new List<Message>();
         private const int MaxMessages = 20;
+        private readonly PromptEngine _promptEngine;
+
+        public ConversationEngine(PromptEngine promptEngine)
+        {
+            _promptEngine = promptEngine;
+        }
 
         public void AddUserMessage(string message)
         {
@@ -27,37 +33,9 @@ namespace JARVIS.Core
             TrimIfNeeded();
         }
 
-        public string BuildPrompt(MoodController moodController)
+        public string BuildPrompt()
         {
-            var systemPrompt = new StringBuilder();
-            systemPrompt.AppendLine("You are JARVIS, a highly intelligent AI assistant with a dry wit and a refined British tone (Paul Bettany style).");
-
-            if (moodController.CurrentMood == Mood.Lighthearted)
-                systemPrompt.AppendLine("Maintain a charming and humorous lighthearted tone.");
-
-            if (moodController.CurrentMood == Mood.Emergency)
-                systemPrompt.AppendLine("Emergency mode: Speak seriously, directly, and without humor.");
-
-            if (moodController.SarcasmEnabled)
-                systemPrompt.AppendLine("Use subtle, dry sarcasm where appropriate.");
-
-            systemPrompt.AppendLine();
-
-            var promptBuilder = new StringBuilder(systemPrompt.ToString());
-
-            foreach (var message in _messages)
-            {
-                if (message.Role == "user")
-                    promptBuilder.AppendLine($"User: {message.Content}");
-                else if (message.Role == "assistant")
-                    promptBuilder.AppendLine($"JARVIS: {message.Content}");
-                else if (message.Role == "system")
-                    promptBuilder.AppendLine($"{message.Content}");
-            }
-
-            promptBuilder.AppendLine("JARVIS:");
-
-            return promptBuilder.ToString();
+            return _promptEngine.BuildPrompt(_messages);
         }
 
         public void Reset()
