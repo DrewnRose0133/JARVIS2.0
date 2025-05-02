@@ -13,6 +13,10 @@ using JARVIS.Models;
 using JARVIS.Services;
 using JARVIS.Shared;
 using Fleck;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using JARVIS.Service;
+
 
 namespace JARVIS
 {
@@ -20,6 +24,21 @@ namespace JARVIS
     {
         static async Task Main(string[] args)
         {
+            var builder = Host.CreateDefaultBuilder(args);
+
+            builder.ConfigureServices((context, services) =>
+            {
+                services.AddSingleton<PersonalityCore>();
+                services.AddSingleton<MoodController>(); // You must have this class
+                services.AddSingleton<ConversationEngine>();
+                services.AddHostedService<JarvisHostedService>();
+            });
+
+            var host = builder.Build();
+            await host.RunAsync();
+
+       
+
             var visualizerServer = new VisualizerSocketServer();
             visualizerServer.Start();
 

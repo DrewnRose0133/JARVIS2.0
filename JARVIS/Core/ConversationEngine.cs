@@ -8,6 +8,31 @@ namespace JARVIS.Core
     {
         private readonly List<Message> _messages = new List<Message>();
         private const int MaxMessages = 20;
+        private readonly PersonalityCore _personality;
+
+        public ConversationEngine Initialize()
+        {
+            var personality = new PersonalityCore
+            {
+                Tone = "Sarcastic",
+                Mood = "Curious",
+                CharacterMode = "Companion"
+            };
+
+            var engine = new ConversationEngine(personality);
+
+            engine.AddKnowledgeFact("The core AI personality module was initialized.");
+            return engine;
+        }
+
+        // Constructor with personality injection
+        public ConversationEngine(PersonalityCore personality)
+        {
+            _personality = personality;
+        }
+
+        // Optional fallback constructor (default witty personality)
+        public ConversationEngine() : this(new PersonalityCore()) { }
 
         public void AddUserMessage(string message)
         {
@@ -30,7 +55,11 @@ namespace JARVIS.Core
         public string BuildPrompt(MoodController moodController)
         {
             var systemPrompt = new StringBuilder();
-            systemPrompt.AppendLine("You are JARVIS, a highly intelligent AI assistant with a dry wit and a refined British tone (Paul Bettany style).");
+
+            // Use mood/tone/personality to influence prompt style
+            systemPrompt.AppendLine($"You are {_personality.Name}, a highly intelligent AI assistant.");
+            systemPrompt.AppendLine($"Current Tone: {_personality.Tone}");
+            systemPrompt.AppendLine($"Mood: {_personality.Mood}, Character Mode: {_personality.CharacterMode}");
 
             if (moodController.CurrentMood == Mood.Lighthearted)
                 systemPrompt.AppendLine("Maintain a charming and humorous lighthearted tone.");
@@ -38,7 +67,7 @@ namespace JARVIS.Core
             if (moodController.CurrentMood == Mood.Emergency)
                 systemPrompt.AppendLine("Emergency mode: Speak seriously, directly, and without humor.");
 
-            if (moodController.SarcasmEnabled)
+            if (moodController.SarcasmEnabled || _personality.Tone == "Sarcastic")
                 systemPrompt.AppendLine("Use subtle, dry sarcasm where appropriate.");
 
             systemPrompt.AppendLine();
@@ -50,27 +79,22 @@ namespace JARVIS.Core
                 if (message.Role == "user")
                     promptBuilder.AppendLine($"User: {message.Content}");
                 else if (message.Role == "assistant")
-                    promptBuilder.AppendLine($"JARVIS: {message.Content}");
+                    promptBuilder.AppendLine($"{_personality.Name}: {message.Content}");
                 else if (message.Role == "system")
                     promptBuilder.AppendLine($"{message.Content}");
             }
 
-            promptBuilder.AppendLine("JARVIS:");
+            promptBuilder.AppendLine($"{_personality.Name}:");
 
             return promptBuilder.ToString();
         }
 
-        public void Reset()
-        {
-            _messages.Clear();
-        }
+        public void Reset() => _messages.Clear();
 
         private void TrimIfNeeded()
         {
             if (_messages.Count > MaxMessages)
-            {
                 _messages.RemoveAt(0);
-            }
         }
 
         public int MessageCount => _messages.Count;
