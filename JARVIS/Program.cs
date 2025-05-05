@@ -196,7 +196,7 @@ namespace JARVIS
                     continue;
                 }
 
-                if (commandHandler.Handle(userInput))
+                if (await commandHandler.Handle(userInput))
                 {
                     userInput = "";
                     continue;

@@ -63,6 +63,13 @@ namespace JARVIS
             // Commands go below here
 
 
+            if (UserSessionManager.CurrentPermission != PermissionLevel.Admin)
+            {
+                _synthesizer.Speak("Access denied. Please authenticate.");
+                return false;
+            }
+
+
             if (input.StartsWith("mode "))
             {
                 var modeName = input.Replace("mode", "", StringComparison.OrdinalIgnoreCase).Trim();
