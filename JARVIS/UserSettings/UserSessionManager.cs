@@ -1,10 +1,4 @@
-<<<<<<< Updated upstream:JARVIS/UserSettings/UserSessionManager.cs
-﻿namespace JARVIS.UserSettings
-=======
-﻿using JARVIS.UserPermissions;
-
 namespace JARVIS.UserSettings
->>>>>>> Stashed changes:JARVIS/UserPermissions/UserSessionManager.cs
 {
     public static class UserSessionManager
     {
@@ -23,8 +17,4 @@ namespace JARVIS.UserSettings
             CurrentPermission = PermissionLevel.Guest;
         }
     }
-<<<<<<< Updated upstream:JARVIS/UserSettings/UserSessionManager.cs
 }
-=======
-}
->>>>>>> Stashed changes:JARVIS/UserPermissions/UserSessionManager.cs

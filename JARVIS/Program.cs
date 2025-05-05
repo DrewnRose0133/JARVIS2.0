@@ -15,18 +15,10 @@ using JARVIS.Shared;
 using Fleck;
 using JARVIS.Service;
 using JARVIS.Audio;
-
+using JARVIS.Python;
 using JARVIS.Logging;
 using System.Reflection.Emit;
 using JARVIS.UserSettings;
-
-
-using JARVIS.UserPermissions;
-using JARVIS.UserSettings;
-
-using JARVIS.Audio;
-using JARVIS.Python;
-using JARVIS.UserPermissions;
 
 
 namespace JARVIS
@@ -66,28 +58,18 @@ namespace JARVIS
             var sceneManager = new SceneManager(smartHomeController);
             var memoryEngine = new MemoryEngine();
 
-            var commandHandler = new CommandHandler(moodController, characterController, memoryEngine, weatherCollector, sceneManager, synthesizer, voiceStyle, cityName);
+          
 
             var statusReporter = new StatusReporter(smartHomeController);
             var permissionManager = new UserPermissionManager();
 
             var commandHandler = new CommandHandler(moodController, characterController, memoryEngine, weatherCollector, sceneManager, synthesizer, voiceStyle, statusReporter, permissionManager, cityName);
 
-            
-
-
-            var commandHandler = new CommandHandler(moodController, characterController, memoryEngine, weatherCollector, sceneManager, synthesizer, voiceStyle, statusReporter, permissionManager, cityName );
-
-            var statusReporter = new StatusReporter(smartHomeController);
-            var commandHandler = new CommandHandler(moodController, characterController, memoryEngine, weatherCollector, sceneManager, synthesizer, voiceStyle, statusReporter, cityName );
 
 
             string userId = "unknown"; // Default until recognized
             PermissionLevel permissionLevel = PermissionLevel.Guest;
 
-
-            var wakeBuffer = new WakeAudioBuffer();
-            wakeBuffer.Start();
 
             var wakeBuffer = new WakeAudioBuffer();
             wakeBuffer.Start();
@@ -117,7 +99,6 @@ namespace JARVIS
 
                 Console.WriteLine("Checking user voiceprint");
                 var voiceAuthenticator = new VoiceAuthenticator();
-
                 userId = voiceAuthenticator.IdentifyUserFromWav("wake_word.wav");
                 userId = userId.Split('\n').Last().Trim().ToLower();
 
@@ -137,18 +118,6 @@ namespace JARVIS
                 }
 
                 Console.WriteLine($"Access level for {userId}: {permissionLevel}");
-
-
-                var userId = voiceAuthenticator.IdentifyUserFromWav("wake_word.wav");
-                userId = userId.Split('\n').Last().Trim().ToLower();
-
-
-
-                Console.WriteLine("Checking for user authorization");
-                var permissionManager = new UserPermissionManager();
-                var level = permissionManager.GetPermission(userId);
-
-                Console.WriteLine($"Access level for {userId}: {level}");
 
 
 

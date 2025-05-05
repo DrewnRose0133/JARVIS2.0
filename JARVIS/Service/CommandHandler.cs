@@ -4,7 +4,6 @@ using System.Speech.Synthesis;
 using JARVIS.Core;
 using JARVIS.Services;
 using JARVIS.Shared;
-using JARVIS.UserPermissions;
 using JARVIS.UserSettings;
 
 namespace JARVIS
