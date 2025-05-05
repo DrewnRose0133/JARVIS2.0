@@ -2,7 +2,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace JARVIS.Core
+namespace JARVIS.UserPermissions
 {
     public enum PermissionLevel
     {

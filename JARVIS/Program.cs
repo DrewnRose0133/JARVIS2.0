@@ -16,6 +16,7 @@ using Fleck;
 using JARVIS.Service;
 using JARVIS.Audio;
 using JARVIS.Python;
+using JARVIS.UserPermissions;
 
 namespace JARVIS
 {
