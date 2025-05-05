@@ -4,6 +4,7 @@ using System.Speech.Synthesis;
 using JARVIS.Core;
 using JARVIS.Services;
 using JARVIS.Shared;
+using JARVIS.UserSettings;
 
 namespace JARVIS
 {
@@ -199,11 +200,8 @@ namespace JARVIS
                 return true;
             }
 
+            if (UserSessionManager.CurrentPermission != PermissionLevel.Admin)
 
-
-
-
-            if (UserSessionManager.CurrentPermission != PermissionLevel.Admin) 
             {
                 Console.WriteLine("Access denied. Please authenticate.");
                 _synthesizer.Speak("Sorry, you don't have permission to do that.");

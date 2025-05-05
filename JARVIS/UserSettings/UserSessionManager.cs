@@ -1,4 +1,4 @@
-﻿namespace JARVIS.UserSettings
+namespace JARVIS.UserSettings
 {
     public static class UserSessionManager
     {

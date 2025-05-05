@@ -1,4 +1,4 @@
-﻿// === VoiceAuthLogger.cs ===
+// === VoiceAuthLogger.cs ===
 using System;
 using System.IO;
 

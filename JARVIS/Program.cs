@@ -15,6 +15,9 @@ using JARVIS.Shared;
 using Fleck;
 using JARVIS.Service;
 using JARVIS.Audio;
+
+using JARVIS.Python;
+
 using JARVIS.Logging;
 using System.Reflection.Emit;
 using JARVIS.UserSettings;
@@ -29,7 +32,6 @@ namespace JARVIS
 
             string authenticatedUserId = null;
             
-
 
             var visualizerServer = StartupEngine.InitializeVisualizer();
             bool isAwake = false;
@@ -58,13 +60,12 @@ namespace JARVIS
             var sceneManager = new SceneManager(smartHomeController);
             var memoryEngine = new MemoryEngine();
 
-            var commandHandler = new CommandHandler(moodController, characterController, memoryEngine, weatherCollector, sceneManager, synthesizer, voiceStyle, cityName);
 
             var statusReporter = new StatusReporter(smartHomeController);
             var permissionManager = new UserPermissionManager();
+
             var commandHandler = new CommandHandler(moodController, characterController, memoryEngine, weatherCollector, sceneManager, synthesizer, voiceStyle, statusReporter, permissionManager, cityName);
 
-            
 
 
             string userId = "unknown"; // Default until recognized
@@ -73,6 +74,7 @@ namespace JARVIS
 
             var wakeBuffer = new WakeAudioBuffer();
             wakeBuffer.Start();
+
 
 
             string userInput = "";
@@ -238,6 +240,8 @@ namespace JARVIS
                 synthesizer.Speak(characterController.GetPreamble());
                 synthesizer.Speak(reply);
                 conversation.TrackConversation(userInput, reply);
+                authenticatedUserId = null;
+                permissionLevel = PermissionLevel.Guest;
                 ResetRecognition();
             }
 
@@ -248,6 +252,8 @@ namespace JARVIS
                 userInput = "";
                 try { wakeListener.Start(); } catch { }
                 Console.WriteLine("[WakeWord] Returning to sleep mode...");
+                authenticatedUserId = null;
+                permissionLevel = PermissionLevel.Guest;
                 visualizerServer.Broadcast("Idle");
                 authenticatedUserId = null;
                 permissionLevel = PermissionLevel.Guest;
