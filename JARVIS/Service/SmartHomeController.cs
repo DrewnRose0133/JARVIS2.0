@@ -5,7 +5,7 @@ namespace JARVIS.Shared
 {
     public class SmartHomeController
     {
-        public async Task<string> TurnOnLightAsync(string room)
+        public async Task<string> TurnOnLightsAsync(string room)
         {
             // Replace with actual API calls to SmartThings or MQTT server
             Console.WriteLine($"Turning on {room} light...");
@@ -13,7 +13,7 @@ namespace JARVIS.Shared
             return $"{room} light is now ON.";
         }
 
-        public async Task<string> TurnOffLightAsync(string room)
+        public async Task<string> TurnOffLightsAsync(string room)
         {
             // Replace with actual API calls to SmartThings or MQTT server
             Console.WriteLine($"Turning off {room} light...");

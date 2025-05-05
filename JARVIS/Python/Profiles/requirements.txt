@@ -1,0 +1,4 @@
+resemblyzer
+numpy
+soundfile
+torch

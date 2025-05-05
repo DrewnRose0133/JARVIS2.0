@@ -17,6 +17,7 @@ namespace JARVIS
         private readonly SpeechSynthesizer _synthesizer;
         private readonly string _city;
         private readonly VoiceStyleController _voiceStyle;
+        private readonly StatusReporter _statusReporter;
 
 
         public CommandHandler(
@@ -27,6 +28,7 @@ namespace JARVIS
             SceneManager sceneManager,
             SpeechSynthesizer synthesizer,
             VoiceStyleController voiceStyle,
+            StatusReporter statusReporter,
             string city)
         {
             _moodController = moodController;
@@ -37,9 +39,11 @@ namespace JARVIS
             _synthesizer = synthesizer;
             _city = city;
             _voiceStyle = voiceStyle;
+            _statusReporter = statusReporter;
         }
 
-        public bool Handle(string input)
+        public async Task<bool> Handle(string input)
+
         {
             input = input.ToLower();
 
@@ -133,7 +137,7 @@ namespace JARVIS
                 if (!string.IsNullOrEmpty(definition))
                 {
                     _synthesizer.Speak($"Executing {name} scene.");
-                    _sceneManager.ExecuteScene(definition);
+                    _sceneManager.ExecuteSceneAsync(definition);
                 }
                 else _synthesizer.Speak($"Scene {name} not found, sir.");
                 return true;
@@ -173,6 +177,15 @@ namespace JARVIS
                     return true;
                 }
             }
+
+            if (input.Contains("system status") || input.Contains("status report"))
+            {
+                var status = await _statusReporter.GetSystemStatusAsync();
+                _voiceStyle.ApplyStyle(_synthesizer);
+                _synthesizer.Speak(status);
+                return true;
+            }
+
 
             return false;
         }

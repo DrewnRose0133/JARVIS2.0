@@ -14,6 +14,8 @@ using JARVIS.Services;
 using JARVIS.Shared;
 using Fleck;
 using JARVIS.Service;
+using JARVIS.Audio;
+using JARVIS.Python;
 
 namespace JARVIS
 {
@@ -47,7 +49,14 @@ namespace JARVIS
             var voiceStyle = new VoiceStyleController(characterController);           
             var sceneManager = new SceneManager(smartHomeController);
             var memoryEngine = new MemoryEngine();
-            var commandHandler = new CommandHandler(moodController, characterController, memoryEngine, weatherCollector, sceneManager, synthesizer, voiceStyle, cityName);
+            var statusReporter = new StatusReporter(smartHomeController);
+            var commandHandler = new CommandHandler(moodController, characterController, memoryEngine, weatherCollector, sceneManager, synthesizer, voiceStyle, statusReporter, cityName );
+
+            string userId = "unknown"; // Default until recognized
+            PermissionLevel permissionLevel = PermissionLevel.Guest;
+
+            var wakeBuffer = new WakeAudioBuffer();
+            wakeBuffer.Start();
 
 
             string userInput = "";
@@ -68,6 +77,25 @@ namespace JARVIS
 
             var wakeListener = StartupEngine.InitializeWakeWord("hey jarvis you there", () =>
             {
+                wakeBuffer.SaveBufferedAudio("wake_word.wav");
+
+                Console.WriteLine("Checking user voiceprint");
+                var voiceAuthenticator = new VoiceAuthenticator();
+                var userId = voiceAuthenticator.IdentifyUserFromWav("wake_word.wav");
+                userId = userId.Split('\n').Last().Trim().ToLower();
+
+
+
+                Console.WriteLine("Checking for user authorization");
+                var permissionManager = new UserPermissionManager();
+                var level = permissionManager.GetPermission(userId);
+
+                Console.WriteLine($"Access level for {userId}: {level}");
+
+
+                Console.WriteLine($"Recognized speaker: {userId}");
+
+
                 lastInputTime = DateTime.Now;
                 synthesizer.Speak(characterController.GetPreamble());
                 visualizerServer.Broadcast("Speaking");
@@ -134,7 +162,7 @@ namespace JARVIS
                     continue;
                 }
 
-                if (commandHandler.Handle(userInput))
+                if (await commandHandler.Handle(userInput))
                 {
                     userInput = "";
                     continue;
