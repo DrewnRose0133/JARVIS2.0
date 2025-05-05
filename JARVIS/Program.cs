@@ -19,6 +19,7 @@ using JARVIS.Logging;
 using System.Reflection.Emit;
 using JARVIS.UserSettings;
 
+
 namespace JARVIS
 {
     class Program
@@ -57,7 +58,7 @@ namespace JARVIS
             var sceneManager = new SceneManager(smartHomeController);
             var memoryEngine = new MemoryEngine();
 
-          //  var commandHandler = new CommandHandler(moodController, characterController, memoryEngine, weatherCollector, sceneManager, synthesizer, voiceStyle, cityName);
+            var commandHandler = new CommandHandler(moodController, characterController, memoryEngine, weatherCollector, sceneManager, synthesizer, voiceStyle, cityName);
 
             var statusReporter = new StatusReporter(smartHomeController);
             var permissionManager = new UserPermissionManager();
@@ -72,7 +73,6 @@ namespace JARVIS
 
             var wakeBuffer = new WakeAudioBuffer();
             wakeBuffer.Start();
-
 
 
             string userInput = "";

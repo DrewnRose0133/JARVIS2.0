@@ -1,4 +1,4 @@
-﻿// === CommandHandler.cs ===
+﻿
 using System;
 using System.Speech.Synthesis;
 using JARVIS.Core;
@@ -19,6 +19,10 @@ namespace JARVIS
         private readonly VoiceStyleController _voiceStyle;
         private readonly StatusReporter _statusReporter;
 
+        private readonly UserPermissionManager _userPermissionManager;
+
+
+
 
         public CommandHandler(
             MoodController moodController,
@@ -29,6 +33,9 @@ namespace JARVIS
             SpeechSynthesizer synthesizer,
             VoiceStyleController voiceStyle,
             StatusReporter statusReporter,
+
+            UserPermissionManager userPermissionManager,
+
             string city)
         {
             _moodController = moodController;
@@ -40,6 +47,11 @@ namespace JARVIS
             _city = city;
             _voiceStyle = voiceStyle;
             _statusReporter = statusReporter;
+
+            _userPermissionManager = userPermissionManager;
+
+
+
         }
 
         public async Task<bool> Handle(string input)
@@ -178,6 +190,7 @@ namespace JARVIS
                 }
             }
 
+
             if (input.Contains("system status") || input.Contains("status report"))
             {
                 var status = await _statusReporter.GetSystemStatusAsync();
@@ -186,6 +199,16 @@ namespace JARVIS
                 return true;
             }
 
+
+
+
+
+            if (UserSessionManager.CurrentPermission != PermissionLevel.Admin) 
+            {
+                Console.WriteLine("Access denied. Please authenticate.");
+                _synthesizer.Speak("Sorry, you don't have permission to do that.");
+                return false;
+            }
 
             return false;
         }
