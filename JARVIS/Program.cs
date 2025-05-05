@@ -14,6 +14,13 @@ using JARVIS.Services;
 using JARVIS.Shared;
 using Fleck;
 using JARVIS.Service;
+<<<<<<< Updated upstream
+=======
+using JARVIS.Audio;
+using JARVIS.Logging;
+using System.Reflection.Emit;
+using JARVIS.UserSettings;
+>>>>>>> Stashed changes
 
 namespace JARVIS
 {
@@ -21,6 +28,11 @@ namespace JARVIS
     {
         static async Task Main(string[] args)
         {
+
+            string authenticatedUserId = null;
+            
+
+
             var visualizerServer = StartupEngine.InitializeVisualizer();
             bool isAwake = false;
             var config = new ConfigurationBuilder()
@@ -47,12 +59,28 @@ namespace JARVIS
             var voiceStyle = new VoiceStyleController(characterController);           
             var sceneManager = new SceneManager(smartHomeController);
             var memoryEngine = new MemoryEngine();
+<<<<<<< Updated upstream
             var commandHandler = new CommandHandler(moodController, characterController, memoryEngine, weatherCollector, sceneManager, synthesizer, voiceStyle, cityName);
+=======
+            var statusReporter = new StatusReporter(smartHomeController);
+            var permissionManager = new UserPermissionManager();
+            var commandHandler = new CommandHandler(moodController, characterController, memoryEngine, weatherCollector, sceneManager, synthesizer, voiceStyle, statusReporter, permissionManager, cityName);
+
+            
+
+
+            string userId = "unknown"; // Default until recognized
+            PermissionLevel permissionLevel = PermissionLevel.Guest;
+
+
+            var wakeBuffer = new WakeAudioBuffer();
+            wakeBuffer.Start();
+>>>>>>> Stashed changes
 
 
             string userInput = "";
             DateTime lastInputTime = DateTime.Now;
-            Task.Run(() =>
+            _ = Task.Run(() =>
             {
                 while (true)
                 {
@@ -68,6 +96,38 @@ namespace JARVIS
 
             var wakeListener = StartupEngine.InitializeWakeWord("hey jarvis you there", () =>
             {
+<<<<<<< Updated upstream
+=======
+                wakeBuffer.SaveBufferedAudio("wake_word.wav");
+
+                Console.WriteLine("Checking user voiceprint");
+                var voiceAuthenticator = new VoiceAuthenticator();
+                userId = voiceAuthenticator.IdentifyUserFromWav("wake_word.wav");
+                userId = userId.Split('\n').Last().Trim().ToLower();
+
+                Console.WriteLine("Checking for user authorization");
+                permissionLevel = permissionManager.GetPermission(userId);
+
+                UserSessionManager.Authenticate(userId, permissionLevel);
+
+
+                if (userId == "unknown" || permissionLevel == PermissionLevel.Guest)
+                {
+                    VoiceAuthLogger.LogFailure($"Voice ID: {userId}, Permission: {permissionLevel}", "wake_word");
+                }
+                else
+                {
+                    VoiceAuthLogger.Log(userId, "wake_word", permissionLevel.ToString());
+                }
+
+                Console.WriteLine($"Access level for {userId}: {permissionLevel}");
+
+
+
+                Console.WriteLine($"Recognized speaker: {userId}");
+
+
+>>>>>>> Stashed changes
                 lastInputTime = DateTime.Now;
                 synthesizer.Speak(characterController.GetPreamble());
                 visualizerServer.Broadcast("Speaking");
@@ -124,6 +184,10 @@ namespace JARVIS
                 {
                     Console.WriteLine("No input received. Returning to sleep mode.");
                     synthesizer.Speak($"No input received for {sleepTimeoutSeconds} seconds. Returning to sleep mode, sir.");
+                    authenticatedUserId = null;
+                    permissionLevel = PermissionLevel.Guest;
+
+
                     ResetRecognition();
                     continue;
                 }
@@ -189,6 +253,11 @@ namespace JARVIS
                 try { wakeListener.Start(); } catch { }
                 Console.WriteLine("[WakeWord] Returning to sleep mode...");
                 visualizerServer.Broadcast("Idle");
+                authenticatedUserId = null;
+                permissionLevel = PermissionLevel.Guest;
+                UserSessionManager.Reset();
+
+
             }
 
             static string? Extract(string input, string label)
