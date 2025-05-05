@@ -14,8 +14,8 @@ namespace JARVIS.UserSettings
     {
         private readonly Dictionary<string, PermissionLevel> _userPermissions = new(StringComparer.OrdinalIgnoreCase)
         {
-            { "andrew", PermissionLevel.Admin },
-            { "sarah", PermissionLevel.User },
+            { "drew", PermissionLevel.Admin },
+            { "rose", PermissionLevel.User },
             { "guest", PermissionLevel.Guest },
             { "unknown", PermissionLevel.Guest }
         };
