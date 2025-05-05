@@ -17,8 +17,14 @@ using JARVIS.Service;
 <<<<<<< Updated upstream
 =======
 using JARVIS.Audio;
+<<<<<<< Updated upstream
 using JARVIS.Logging;
 using System.Reflection.Emit;
+using JARVIS.UserSettings;
+>>>>>>> Stashed changes
+=======
+
+using JARVIS.UserPermissions;
 using JARVIS.UserSettings;
 >>>>>>> Stashed changes
 
@@ -28,10 +34,14 @@ namespace JARVIS
     {
         static async Task Main(string[] args)
         {
+<<<<<<< Updated upstream
 
             string authenticatedUserId = null;
             
 
+=======
+            string authenticatedUserId = null;
+>>>>>>> Stashed changes
 
             var visualizerServer = StartupEngine.InitializeVisualizer();
             bool isAwake = false;
@@ -64,10 +74,14 @@ namespace JARVIS
 =======
             var statusReporter = new StatusReporter(smartHomeController);
             var permissionManager = new UserPermissionManager();
+<<<<<<< Updated upstream
             var commandHandler = new CommandHandler(moodController, characterController, memoryEngine, weatherCollector, sceneManager, synthesizer, voiceStyle, statusReporter, permissionManager, cityName);
 
             
 
+=======
+            var commandHandler = new CommandHandler(moodController, characterController, memoryEngine, weatherCollector, sceneManager, synthesizer, voiceStyle, statusReporter, permissionManager, cityName );
+>>>>>>> Stashed changes
 
             string userId = "unknown"; // Default until recognized
             PermissionLevel permissionLevel = PermissionLevel.Guest;
@@ -242,6 +256,8 @@ namespace JARVIS
                 synthesizer.Speak(characterController.GetPreamble());
                 synthesizer.Speak(reply);
                 conversation.TrackConversation(userInput, reply);
+                authenticatedUserId = null;
+                permissionLevel = PermissionLevel.Guest;
                 ResetRecognition();
             }
 
@@ -252,6 +268,8 @@ namespace JARVIS
                 userInput = "";
                 try { wakeListener.Start(); } catch { }
                 Console.WriteLine("[WakeWord] Returning to sleep mode...");
+                authenticatedUserId = null;
+                permissionLevel = PermissionLevel.Guest;
                 visualizerServer.Broadcast("Idle");
                 authenticatedUserId = null;
                 permissionLevel = PermissionLevel.Guest;

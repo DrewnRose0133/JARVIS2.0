@@ -1,8 +1,18 @@
+<<<<<<< Updated upstream
 ﻿// === VoiceAuthLogger.cs ===
 using System;
 using System.IO;
 
 namespace JARVIS.Logging
+=======
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using System.Threading.Tasks;
+
+namespace JARVIS.Audio
+>>>>>>> Stashed changes
 {
     public static class VoiceAuthLogger
     {

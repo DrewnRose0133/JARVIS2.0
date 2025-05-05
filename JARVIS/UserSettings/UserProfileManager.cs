@@ -21,4 +21,8 @@ namespace JARVIS.UserSettings
             return UserNames.TryGetValue(userId, out var name) ? name : "Guest";
         }
     }
+<<<<<<< Updated upstream:JARVIS/UserSettings/UserProfileManager.cs
 }
+=======
+}
+>>>>>>> Stashed changes:JARVIS/UserPermissions/UserProfileManager.cs
