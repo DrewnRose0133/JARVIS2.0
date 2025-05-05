@@ -14,19 +14,20 @@ using JARVIS.Services;
 using JARVIS.Shared;
 using Fleck;
 using JARVIS.Service;
-<<<<<<< Updated upstream
-=======
 using JARVIS.Audio;
-<<<<<<< Updated upstream
+
 using JARVIS.Logging;
 using System.Reflection.Emit;
 using JARVIS.UserSettings;
->>>>>>> Stashed changes
-=======
+
 
 using JARVIS.UserPermissions;
 using JARVIS.UserSettings;
->>>>>>> Stashed changes
+
+using JARVIS.Audio;
+using JARVIS.Python;
+using JARVIS.UserPermissions;
+
 
 namespace JARVIS
 {
@@ -34,14 +35,9 @@ namespace JARVIS
     {
         static async Task Main(string[] args)
         {
-<<<<<<< Updated upstream
 
             string authenticatedUserId = null;
             
-
-=======
-            string authenticatedUserId = null;
->>>>>>> Stashed changes
 
             var visualizerServer = StartupEngine.InitializeVisualizer();
             bool isAwake = false;
@@ -69,19 +65,22 @@ namespace JARVIS
             var voiceStyle = new VoiceStyleController(characterController);           
             var sceneManager = new SceneManager(smartHomeController);
             var memoryEngine = new MemoryEngine();
-<<<<<<< Updated upstream
+
             var commandHandler = new CommandHandler(moodController, characterController, memoryEngine, weatherCollector, sceneManager, synthesizer, voiceStyle, cityName);
-=======
+
             var statusReporter = new StatusReporter(smartHomeController);
             var permissionManager = new UserPermissionManager();
-<<<<<<< Updated upstream
+
             var commandHandler = new CommandHandler(moodController, characterController, memoryEngine, weatherCollector, sceneManager, synthesizer, voiceStyle, statusReporter, permissionManager, cityName);
 
             
 
-=======
+
             var commandHandler = new CommandHandler(moodController, characterController, memoryEngine, weatherCollector, sceneManager, synthesizer, voiceStyle, statusReporter, permissionManager, cityName );
->>>>>>> Stashed changes
+
+            var statusReporter = new StatusReporter(smartHomeController);
+            var commandHandler = new CommandHandler(moodController, characterController, memoryEngine, weatherCollector, sceneManager, synthesizer, voiceStyle, statusReporter, cityName );
+
 
             string userId = "unknown"; // Default until recognized
             PermissionLevel permissionLevel = PermissionLevel.Guest;
@@ -89,7 +88,10 @@ namespace JARVIS
 
             var wakeBuffer = new WakeAudioBuffer();
             wakeBuffer.Start();
->>>>>>> Stashed changes
+
+            var wakeBuffer = new WakeAudioBuffer();
+            wakeBuffer.Start();
+
 
 
             string userInput = "";
@@ -110,12 +112,12 @@ namespace JARVIS
 
             var wakeListener = StartupEngine.InitializeWakeWord("hey jarvis you there", () =>
             {
-<<<<<<< Updated upstream
-=======
+
                 wakeBuffer.SaveBufferedAudio("wake_word.wav");
 
                 Console.WriteLine("Checking user voiceprint");
                 var voiceAuthenticator = new VoiceAuthenticator();
+
                 userId = voiceAuthenticator.IdentifyUserFromWav("wake_word.wav");
                 userId = userId.Split('\n').Last().Trim().ToLower();
 
@@ -137,11 +139,23 @@ namespace JARVIS
                 Console.WriteLine($"Access level for {userId}: {permissionLevel}");
 
 
+                var userId = voiceAuthenticator.IdentifyUserFromWav("wake_word.wav");
+                userId = userId.Split('\n').Last().Trim().ToLower();
+
+
+
+                Console.WriteLine("Checking for user authorization");
+                var permissionManager = new UserPermissionManager();
+                var level = permissionManager.GetPermission(userId);
+
+                Console.WriteLine($"Access level for {userId}: {level}");
+
+
 
                 Console.WriteLine($"Recognized speaker: {userId}");
 
 
->>>>>>> Stashed changes
+
                 lastInputTime = DateTime.Now;
                 synthesizer.Speak(characterController.GetPreamble());
                 visualizerServer.Broadcast("Speaking");
@@ -212,7 +226,7 @@ namespace JARVIS
                     continue;
                 }
 
-                if (commandHandler.Handle(userInput))
+                if (await commandHandler.Handle(userInput))
                 {
                     userInput = "";
                     continue;

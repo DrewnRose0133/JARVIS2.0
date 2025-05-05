@@ -20,7 +20,9 @@ namespace JARVIS
         private readonly string _city;
         private readonly VoiceStyleController _voiceStyle;
         private readonly StatusReporter _statusReporter;
+
         private readonly UserPermissionManager _userPermissionManager;
+
 
 
 
@@ -33,7 +35,9 @@ namespace JARVIS
             SpeechSynthesizer synthesizer,
             VoiceStyleController voiceStyle,
             StatusReporter statusReporter,
+
             UserPermissionManager userPermissionManager,
+
             string city)
         {
             _moodController = moodController;
@@ -45,7 +49,9 @@ namespace JARVIS
             _city = city;
             _voiceStyle = voiceStyle;
             _statusReporter = statusReporter;
+
             _userPermissionManager = userPermissionManager;
+
 
 
         }
@@ -197,17 +203,16 @@ namespace JARVIS
 
 
 
-
-<<<<<<< Updated upstream
             if (UserSessionManager.CurrentPermission != PermissionLevel.Admin) 
-=======
+
             if (UserSessionManager.CurrentPermission != PermissionLevel.Admin)
->>>>>>> Stashed changes
+
             {
                 Console.WriteLine("Access denied. Please authenticate.");
                 _synthesizer.Speak("Sorry, you don't have permission to do that.");
                 return false;
             }
+
 
             return false;
         }
