@@ -1,10 +1,9 @@
-﻿// === CommandHandler.cs ===
+﻿
 using System;
 using System.Speech.Synthesis;
 using JARVIS.Core;
 using JARVIS.Services;
 using JARVIS.Shared;
-using JARVIS.UserSettings;
 
 namespace JARVIS
 {
@@ -18,12 +17,10 @@ namespace JARVIS
         private readonly SpeechSynthesizer _synthesizer;
         private readonly string _city;
         private readonly VoiceStyleController _voiceStyle;
-<<<<<<< Updated upstream
-
-=======
         private readonly StatusReporter _statusReporter;
         private readonly UserPermissionManager _userPermissionManager;
->>>>>>> Stashed changes
+
+
 
         public CommandHandler(
             MoodController moodController,
@@ -33,11 +30,8 @@ namespace JARVIS
             SceneManager sceneManager,
             SpeechSynthesizer synthesizer,
             VoiceStyleController voiceStyle,
-<<<<<<< Updated upstream
-=======
             StatusReporter statusReporter,
             UserPermissionManager userPermissionManager,
->>>>>>> Stashed changes
             string city)
         {
             _moodController = moodController;
@@ -48,14 +42,14 @@ namespace JARVIS
             _synthesizer = synthesizer;
             _city = city;
             _voiceStyle = voiceStyle;
-<<<<<<< Updated upstream
-=======
             _statusReporter = statusReporter;
             _userPermissionManager = userPermissionManager;
->>>>>>> Stashed changes
+
+
         }
 
-        public bool Handle(string input)
+        public async Task<bool> Handle(string input)
+
         {
             input = input.ToLower();
 
@@ -149,7 +143,7 @@ namespace JARVIS
                 if (!string.IsNullOrEmpty(definition))
                 {
                     _synthesizer.Speak($"Executing {name} scene.");
-                    _sceneManager.ExecuteScene(definition);
+                    _sceneManager.ExecuteSceneAsync(definition);
                 }
                 else _synthesizer.Speak($"Scene {name} not found, sir.");
                 return true;
@@ -190,8 +184,7 @@ namespace JARVIS
                 }
             }
 
-<<<<<<< Updated upstream
-=======
+
             if (input.Contains("system status") || input.Contains("status report"))
             {
                 var status = await _statusReporter.GetSystemStatusAsync();
@@ -199,6 +192,10 @@ namespace JARVIS
                 _synthesizer.Speak(status);
                 return true;
             }
+
+
+
+
             if (UserSessionManager.CurrentPermission != PermissionLevel.Admin) 
             {
                 Console.WriteLine("Access denied. Please authenticate.");
@@ -206,9 +203,6 @@ namespace JARVIS
                 return false;
             }
 
-
-
->>>>>>> Stashed changes
             return false;
         }
     }
