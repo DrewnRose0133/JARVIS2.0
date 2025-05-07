@@ -4,7 +4,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Text.Json;
 
-namespace JARVIS.Core
+namespace JARVIS.Memory
 {
     public class MemoryEngine
     {

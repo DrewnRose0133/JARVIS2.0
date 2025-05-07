@@ -4,8 +4,9 @@ using System.Linq;
 using System.Speech.Synthesis;
 using System.Text;
 using System.Threading.Tasks;
+using JARVIS.Core;
 
-namespace JARVIS.Core
+namespace JARVIS.Controllers
 {
     public class VoiceStyleController
     {

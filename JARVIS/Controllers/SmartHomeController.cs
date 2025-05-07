@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Threading.Tasks;
 
-namespace JARVIS.Shared
+namespace JARVIS.Controllers
 {
     public class SmartHomeController
     {

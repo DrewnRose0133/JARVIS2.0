@@ -1,27 +1,19 @@
-﻿using System;
-using System.Diagnostics;
-using System.IO;
-using System.Net.Http;
-using System.Net.Http.Json;
-using System.Speech.Recognition;
-using System.Speech.Synthesis;
-using System.Text.Json;
+﻿using System.Speech.Recognition;
 using Microsoft.Extensions.Configuration;
-using System.Threading.Tasks;
 using JARVIS.Core;
-using JARVIS.Models;
 using JARVIS.Services;
-using JARVIS.Shared;
-using Fleck;
 using JARVIS.Service;
 using JARVIS.Audio;
-
+using JARVIS.Memory;
 using JARVIS.Python;
-
+using JARVIS.Controllers;
 using JARVIS.Logging;
-using System.Reflection.Emit;
 using JARVIS.UserSettings;
-
+using JARVIS.Music;
+using JARVIS.Devices.Interfaces;
+using JARVIS.Visuals;
+using JARVIS.Devices;
+using JARVIS.Initializers;
 
 namespace JARVIS
 {
@@ -31,7 +23,15 @@ namespace JARVIS
         {
 
             string authenticatedUserId = null;
+
+            var lightsService = LightServiceInitializer.Create();
+
+
+
+            await SpotifyClientManager.InitializeAsync();
+            var lightSyncService = new LightSyncService(lightsService, "living room");
             
+
 
             var visualizerServer = StartupEngine.InitializeVisualizer();
             bool isAwake = false;
@@ -60,11 +60,13 @@ namespace JARVIS
             var sceneManager = new SceneManager(smartHomeController);
             var memoryEngine = new MemoryEngine();
 
-
+            string _musicDirectory = "";
             var statusReporter = new StatusReporter(smartHomeController);
             var permissionManager = new UserPermissionManager();
 
-            var commandHandler = new CommandHandler(moodController, characterController, memoryEngine, weatherCollector, sceneManager, synthesizer, voiceStyle, statusReporter, permissionManager, cityName);
+            var djManager = new DJModeManager(_musicDirectory, synthesizer, lightSyncService);
+
+            var commandHandler = new CommandHandler(moodController, characterController, memoryEngine, weatherCollector, sceneManager, synthesizer, voiceStyle, statusReporter, djManager, permissionManager,  cityName);
 
 
 
@@ -75,6 +77,25 @@ namespace JARVIS
             var wakeBuffer = new WakeAudioBuffer();
             wakeBuffer.Start();
 
+            _ = Task.Run(async () =>
+            {
+                while (true)
+                {
+                    await Task.Delay(TimeSpan.FromMinutes(2)); // 🕒 Suggest every 2 minutes
+
+                    if (isAwake && UserSessionManager.CurrentPermission == PermissionLevel.Admin)
+                    {
+                        var suggestionEngine = new SuggestionEngine();
+                        var suggestion = suggestionEngine.GetSuggestion();
+
+                        if (!string.IsNullOrEmpty(suggestion))
+                        {
+                            Console.WriteLine($"JARVIS (proactive): {suggestion}");
+                            synthesizer.Speak(suggestion);
+                        }
+                    }
+                }
+            });
 
 
             string userInput = "";
@@ -151,7 +172,7 @@ namespace JARVIS
                 Console.WriteLine($"JARVIS (Startup Weather): {latestWeather}");
                 synthesizer.Speak(latestWeather);
 
-                var suggestion = suggestionEngine.CheckForSuggestion(DateTime.Now, latestWeather);
+                var suggestion = suggestionEngine.CheckForSuggestion(DateTime.Now);
                 if (!string.IsNullOrEmpty(suggestion))
                 {
                     Console.WriteLine($"JARVIS: {suggestion}");
@@ -228,7 +249,7 @@ namespace JARVIS
                 conversation.AddAssistantMessage(reply);
                 Console.WriteLine($"JARVIS: {reply}");
 
-                var suggestion = suggestionEngine.CheckForSuggestion(DateTime.Now, latestWeather);
+                var suggestion = suggestionEngine.CheckForSuggestion(DateTime.Now);
                 if (!string.IsNullOrEmpty(suggestion))
                 {
                     Console.WriteLine($"JARVIS: {suggestion}");

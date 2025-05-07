@@ -1,7 +1,10 @@
 ﻿
 using System;
 using System.Speech.Synthesis;
+using JARVIS.Controllers;
 using JARVIS.Core;
+using JARVIS.Memory;
+using JARVIS.Music;
 using JARVIS.Services;
 using JARVIS.Shared;
 using JARVIS.UserSettings;
@@ -19,7 +22,7 @@ namespace JARVIS
         private readonly string _city;
         private readonly VoiceStyleController _voiceStyle;
         private readonly StatusReporter _statusReporter;
-
+        private readonly DJModeManager _djModeManager;
         private readonly UserPermissionManager _userPermissionManager;
 
 
@@ -34,9 +37,8 @@ namespace JARVIS
             SpeechSynthesizer synthesizer,
             VoiceStyleController voiceStyle,
             StatusReporter statusReporter,
-
+            DJModeManager djModeManager,
             UserPermissionManager userPermissionManager,
-
             string city)
         {
             _moodController = moodController;
@@ -48,7 +50,7 @@ namespace JARVIS
             _city = city;
             _voiceStyle = voiceStyle;
             _statusReporter = statusReporter;
-
+            _djModeManager = djModeManager;
             _userPermissionManager = userPermissionManager;
 
 
@@ -59,6 +61,10 @@ namespace JARVIS
 
         {
             input = input.ToLower();
+
+
+            CommandHistoryManager.LogCommand(UserSessionManager.CurrentUserId, input);
+
 
             // Commands go below here
 
@@ -198,6 +204,14 @@ namespace JARVIS
                 }
             }
 
+            if (input.StartsWith("what did I say about "))
+            {
+                var key = input.Replace("what did I say about ", "").Trim();
+                var value = _memoryEngine.Recall(key);
+                _synthesizer.Speak(value != null ? $"{key} should be {value}" : $"I don't remember anything about {key}.");
+                return true;
+            }
+
 
             if (input.Contains("system status") || input.Contains("status report"))
             {
@@ -214,6 +228,47 @@ namespace JARVIS
                 _synthesizer.Speak("Sorry, you don't have permission to do that.");
                 return false;
             }
+            if (input == "shuffle music")
+            {
+                _djModeManager.ShuffleAndPlay();
+                return true;
+            }
+
+            if (input == "play next track")
+            {
+                _djModeManager.PlayNextTrack();
+                return true;
+            }
+
+            if (input == "repeat this song")
+            {
+                _djModeManager.RepeatCurrent();
+                return true;
+            }
+
+            if (input == "what's playing" || input == "whats playing")
+            {
+                var track = _djModeManager.GetCurrentTrackName();
+                _synthesizer.Speak($"Currently playing: {track}.");
+                return true;
+            }
+
+            if (input.StartsWith("play music for "))
+            {
+                var mood = input.Replace("play music for ", "").Trim();
+                _djModeManager.PlayByMood(mood);
+                return true;
+            }
+            if (input.StartsWith("play song "))
+            {
+                var song = input.Replace("play song ", "").Trim();
+                var success = await SpotifyClientManager.PlayTrackBySearchAsync(song);
+                if (!success)
+                    _synthesizer.Speak("Sorry, I couldn’t find that track.");
+                return true;
+            }
+
+
 
             return false;
         }
